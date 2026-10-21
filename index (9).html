@@ -1,0 +1,2585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>클랩! · Clapperboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#17171a; --panel:#1f2023; --panel-2:#26272b; --panel-3:#2d2e33;
+    --slate:#0b0b0c; --chalk:#f2efe6; --chalk-dim:#b6b2a6;
+    --amber:#e8a23c; --amber-2:#c98527;
+    --red:#c9544c; --red-dim:#7a332f;
+    --green:#5c9a6f; --green-dim:#33513e;
+    --border:#35363b; --border-soft:#2a2b2f;
+    --radius-sm:6px; --radius-md:12px; --radius-lg:20px;
+    --font-display:'Oswald',sans-serif;
+    --font-mono:'Space Mono',monospace;
+    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#17171a; }
+  }
+  :root[data-theme="dark"]{ --bg:#17171a; }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--chalk);
+    font-family:var(--font-body);
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    overflow:hidden;
+    background-image:
+      radial-gradient(ellipse at 20% -10%, rgba(232,162,60,0.07), transparent 45%),
+      radial-gradient(ellipse at 90% 110%, rgba(92,154,111,0.06), transparent 45%);
+  }
+  html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+  #app{ height:100%; width:100%; position:relative; overflow:hidden; }
+  .screen{
+    position:absolute; inset:0; display:none; flex-direction:column;
+    animation: fadeIn .22s ease;
+  }
+  .screen.active{ display:flex; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+  @media (prefers-reduced-motion: reduce){ .screen{animation:none;} }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--panel-3); border-radius:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  h1,h2,h3,.font-display{ font-family:var(--font-display); letter-spacing:.02em; margin:0; }
+  .mono{ font-family:var(--font-mono); }
+
+  button{ font-family:var(--font-body); cursor:pointer; border:none; background:none; color:inherit; }
+  input,textarea{ font-family:var(--font-body); }
+
+  /* ---------- stripe motif ---------- */
+  .clap-stripe{
+    height:14px;
+    background: repeating-linear-gradient(115deg, var(--chalk) 0 22px, var(--slate) 22px 44px);
+    flex-shrink:0;
+  }
+
+  /* ---------- Home ---------- */
+  #screen-home{ padding:36px 48px; }
+  .home-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:28px; }
+  .home-title{ font-size:34px; font-weight:600; }
+  .home-title span{ color:var(--amber); }
+  .home-sub{ color:var(--chalk-dim); font-size:14px; margin-top:4px; }
+  .new-project-btn{
+    background:var(--amber); color:var(--slate); font-family:var(--font-display);
+    font-size:15px; font-weight:600; letter-spacing:.03em;
+    padding:14px 22px; border-radius:var(--radius-md);
+    display:flex; align-items:center; gap:8px;
+    transition:transform .12s ease, background .12s ease;
+  }
+  .new-project-btn:hover{ background:var(--amber-2); }
+  .new-project-btn:active{ transform:scale(.97); }
+
+  .project-grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+    gap:18px; overflow-y:auto; padding-bottom:24px; align-content:start;
+    height:calc(100% - 100px);
+  }
+  .project-card{
+    background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--radius-md);
+    overflow:hidden; text-align:left; display:flex; flex-direction:column;
+    transition:border-color .15s ease, transform .12s ease;
+    position:relative;
+  }
+  .project-card:hover{ border-color:var(--amber); transform:translateY(-2px); }
+  .project-card .body{ padding:16px 18px 18px; }
+  .project-card .p-title{ font-size:19px; font-weight:600; margin-bottom:6px; }
+  .project-card .p-meta{ color:var(--chalk-dim); font-size:12.5px; line-height:1.7; }
+  .project-card .p-progress{ margin-top:12px; }
+  .progress-track{ height:5px; border-radius:4px; background:var(--panel-3); overflow:hidden; }
+  .progress-fill{ height:100%; background:var(--amber); border-radius:4px; }
+  .progress-label{ font-size:11px; color:var(--chalk-dim); margin-top:6px; font-family:var(--font-mono); }
+  .card-del{
+    position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:50%;
+    background:rgba(0,0,0,.35); color:var(--chalk-dim); font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .card-del:hover{ background:var(--red-dim); color:var(--chalk); }
+
+  .empty-state{ color:var(--chalk-dim); text-align:center; padding-top:80px; }
+  .empty-state .glyph{ font-size:44px; margin-bottom:12px; opacity:.6; }
+
+  /* ---------- Form (new project) ---------- */
+  #screen-new{ padding:0; }
+  .form-shell{ max-width:640px; margin:0 auto; padding:36px 24px 60px; overflow-y:auto; height:100%; width:100%; }
+  .topbar{
+    display:flex; align-items:center; gap:14px; padding:16px 24px;
+    border-bottom:1px solid var(--border-soft); flex-shrink:0;
+  }
+  .back-btn{
+    width:36px; height:36px; border-radius:50%; background:var(--panel-2);
+    display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--chalk-dim);
+  }
+  .back-btn:hover{ background:var(--panel-3); color:var(--chalk); }
+  .topbar-title{ font-family:var(--font-display); font-size:18px; font-weight:600; }
+
+  .field{ margin-bottom:20px; }
+  .field label{ display:block; font-size:12.5px; color:var(--chalk-dim); margin-bottom:7px; font-family:var(--font-display); letter-spacing:.02em; }
+  .field input[type=text], .field input[type=number], .field textarea{
+    width:100%; background:var(--panel); border:1px solid var(--border); color:var(--chalk);
+    border-radius:var(--radius-sm); padding:12px 13px; font-size:15px; outline:none;
+    transition:border-color .12s ease;
+  }
+  .field input:focus, .field textarea:focus{ border-color:var(--amber); }
+  .field textarea{ resize:vertical; min-height:56px; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .upload-box{
+    border:1.5px dashed var(--border); border-radius:var(--radius-md); padding:18px;
+    display:flex; align-items:center; gap:14px; background:var(--panel);
+  }
+  .upload-box .icon{ font-size:22px; }
+  .upload-box .info{ flex:1; }
+  .upload-box .fname{ font-size:13.5px; color:var(--chalk); }
+  .upload-box .fhint{ font-size:11.5px; color:var(--chalk-dim); margin-top:2px; }
+  .upload-btn{ background:var(--panel-3); padding:8px 14px; border-radius:var(--radius-sm); font-size:12.5px; }
+  .upload-btn:hover{ background:var(--border); }
+  .submit-btn{
+    width:100%; background:var(--amber); color:var(--slate); font-family:var(--font-display);
+    font-weight:600; font-size:16px; padding:15px; border-radius:var(--radius-md); margin-top:8px;
+    letter-spacing:.02em;
+  }
+  .submit-btn:hover{ background:var(--amber-2); }
+  .submit-btn:disabled{ opacity:.4; }
+  .req-err{ color:var(--red); font-size:12.5px; margin-top:-10px; margin-bottom:16px; display:none; }
+
+  /* ---------- Project shell ---------- */
+  #screen-project{ padding:0; }
+  .proj-topbar{
+    display:flex; align-items:center; gap:16px; padding:14px 22px;
+    border-bottom:1px solid var(--border-soft); flex-shrink:0; background:var(--panel);
+  }
+  .proj-title{ font-family:var(--font-display); font-weight:600; font-size:17px; }
+  .proj-tabs{ display:flex; gap:4px; margin-left:auto; background:var(--panel-2); padding:4px; border-radius:10px; }
+  .proj-tab{ padding:9px 18px; border-radius:8px; font-size:13.5px; font-family:var(--font-display); color:var(--chalk-dim); letter-spacing:.02em; }
+  .proj-tab.active{ background:var(--amber); color:var(--slate); }
+  .proj-body{ flex:1; overflow:hidden; position:relative; }
+  .proj-view{ position:absolute; inset:0; display:none; }
+  .proj-view.active{ display:flex; }
+
+  /* ---------- Storage / Archive ---------- */
+  #view-storage{ flex-direction:column; padding:22px 26px; overflow-y:auto; gap:18px; }
+  .storage-head{ display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:14px; }
+  .storage-progress-card{
+    background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--radius-md);
+    padding:16px 20px; display:flex; align-items:center; gap:20px; min-width:200px;
+  }
+  .storage-progress-text .big{ font-family:var(--font-mono); font-size:28px; color:var(--amber); }
+  .storage-progress-text .lbl{ font-size:11.5px; color:var(--chalk-dim); margin-top:2px; }
+  .export-btns{ display:flex; gap:10px; }
+  .export-btn{
+    background:var(--panel-2); border:1px solid var(--border); padding:11px 16px; border-radius:var(--radius-sm);
+    font-size:13px; display:flex; align-items:center; gap:8px; font-family:var(--font-display); letter-spacing:.02em;
+  }
+  .export-btn:hover{ border-color:var(--amber); color:var(--amber); }
+  .export-btn.primary{ background:var(--amber); color:var(--slate); border-color:var(--amber); }
+  .export-btn.primary:hover{ background:var(--amber-2); color:var(--slate); }
+
+  .log-table-wrap{ background:var(--panel); border:1px solid var(--border-soft); border-radius:var(--radius-md); overflow:hidden; }
+  table.log-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.log-table th{
+    text-align:left; padding:11px 14px; background:var(--panel-2); color:var(--chalk-dim);
+    font-family:var(--font-display); font-weight:500; font-size:11.5px; letter-spacing:.04em; text-transform:uppercase;
+    border-bottom:1px solid var(--border-soft);
+  }
+  table.log-table td{ padding:10px 14px; border-bottom:1px solid var(--border-soft); font-family:var(--font-mono); font-size:13px; }
+  table.log-table tr:last-child td{ border-bottom:none; }
+  .pill{ padding:3px 9px; border-radius:20px; font-size:11px; font-family:var(--font-display); letter-spacing:.03em; }
+  .pill.ok{ background:var(--green-dim); color:#a7d9b6; }
+  .pill.ng{ background:var(--red-dim); color:#f0b3ae; }
+  .table-empty{ padding:40px; text-align:center; color:var(--chalk-dim); font-size:13.5px; }
+  .date-group-row td{ background:var(--panel-2); padding:8px 14px; }
+  .date-group-label{ font-family:var(--font-display); font-size:11.5px; letter-spacing:.03em; color:var(--chalk-dim); text-transform:uppercase; }
+  .date-divider-row td{ padding:0; border:none; }
+  .date-divider{ height:10px; }
+
+  /* ---------- Script viewer / info tab ---------- */
+  #view-script{ flex-direction:column; overflow-y:auto; }
+  .info-panel{ padding:22px 26px; border-bottom:1px solid var(--border-soft); flex-shrink:0; }
+  .info-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .info-static{
+    background:var(--panel); border:1px solid var(--border); color:var(--chalk-dim);
+    border-radius:var(--radius-sm); padding:12px 13px; font-size:14px;
+  }
+  .pw-reveal-row{ display:flex; align-items:center; gap:10px; }
+  .pw-reveal-row .info-static{ flex:1; letter-spacing:.06em; }
+  .info-actions{ margin-top:6px; }
+  .script-tabs{ display:flex; gap:8px; padding:14px 22px; border-bottom:1px solid var(--border-soft); flex-shrink:0; }
+  .script-tab{ padding:8px 16px; border-radius:8px; background:var(--panel-2); font-size:13px; color:var(--chalk-dim); font-family:var(--font-display); }
+  .script-tab.active{ background:var(--amber); color:var(--slate); }
+  .script-frame-wrap{ height:62vh; min-height:360px; padding:0 22px 22px; }
+  .script-frame-wrap iframe{ width:100%; height:100%; border:none; border-radius:var(--radius-md); background:#fff; }
+  .script-empty{ height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--chalk-dim); gap:10px; }
+  .script-empty .glyph{ font-size:40px; opacity:.5; }
+
+  /* ---------- Calendar ---------- */
+  #view-calendar{ flex-direction:column; padding:22px 26px; overflow-y:auto; }
+  .calendar-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .calendar-title{ font-family:var(--font-display); font-size:18px; font-weight:600; }
+  .calendar-weekdays{
+    display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px;
+    font-size:11.5px; color:var(--chalk-dim); text-align:center; font-family:var(--font-display); letter-spacing:.03em;
+  }
+  .calendar-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .cal-cell{
+    min-height:78px; border:1px solid var(--border-soft); border-radius:8px; background:var(--panel);
+    padding:6px 7px; font-size:12.5px; color:var(--chalk-dim); text-align:left; display:flex; flex-direction:column; gap:4px;
+    transition:border-color .12s ease;
+  }
+  .cal-cell:hover{ border-color:var(--amber); }
+  .cal-cell.empty{ background:transparent; border-color:transparent; pointer-events:none; }
+  .cal-cell.today{ border-color:var(--amber); }
+  .cal-daynum{ font-family:var(--font-mono); color:var(--chalk); font-size:13px; }
+  .cal-cell.today .cal-daynum{ color:var(--amber); }
+  .cal-events{ display:flex; flex-direction:column; gap:2px; overflow:hidden; }
+  .cal-event-pill{
+    background:var(--panel-3); color:var(--chalk); border-radius:4px; padding:2px 5px; font-size:10.5px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .cal-more{ font-size:10px; color:var(--chalk-dim); }
+  .sch-item{
+    background:var(--panel-2); border-radius:8px; padding:9px 11px; font-size:12.5px;
+    display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
+  }
+  .sch-item .sch-del{ color:var(--chalk-dim); flex-shrink:0; }
+  .sch-item .sch-del:hover{ color:var(--red); }
+  .sch-item[onclick]:hover{ background:var(--panel-3); }
+
+  /* ---------- Global (all-projects) calendar ---------- */
+  #screen-globalcal{ padding:0; }
+  .gcal-body{ padding:22px 26px; overflow-y:auto; height:calc(100% - 61px); }
+  .gcal-legend{ display:flex; flex-wrap:wrap; gap:8px 16px; margin-bottom:16px; }
+  .gcal-legend-item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--chalk-dim); }
+  .gcal-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:4px; flex-shrink:0; }
+
+  /* ---------- Best shot star ---------- */
+  .best-star{ font-size:16px; color:var(--chalk-dim); line-height:1; }
+  .best-star.active{ color:var(--amber); }
+  .best-star:hover{ color:var(--amber); }
+
+  /* ---------- Big slate mode ---------- */
+  .big-mode-btn{
+    position:absolute; top:14px; right:22px; z-index:5;
+    background:var(--panel-2); border:1px solid var(--border); color:var(--chalk-dim);
+    padding:8px 14px; border-radius:8px; font-size:12.5px; font-family:var(--font-display); letter-spacing:.02em;
+    display:flex; align-items:center; gap:6px;
+  }
+  .big-mode-btn:hover{ color:var(--chalk); border-color:var(--amber); }
+  #view-clapper{ position:relative; }
+  #view-clapper.big-mode .clapper-side{ display:none; }
+  #view-clapper.big-mode .board{ max-width:1500px; }
+  #view-clapper.big-mode .clapper-stage{ padding:8px 32px; }
+  #view-clapper.big-mode .btn-clap{ font-size:26px; padding:22px 8px; }
+  #view-clapper.big-mode .board-actions button{ font-size:20px; padding:22px 8px; }
+  #view-clapper.big-mode .b-field .b-label{ font-size:13px; }
+  #view-clapper.big-mode .b-field .b-value{ font-size:22px; }
+  #view-clapper.big-mode .scn-num{ font-size:56px; }
+  #view-clapper.big-mode .scn-box .b-label{ font-size:13px; }
+  #view-clapper.big-mode .scn-hint{ font-size:13px; }
+  #view-clapper.big-mode .timecode{ font-size:68px; }
+  #view-clapper.big-mode .timecode-status{ font-size:16px; }
+  #view-clapper.big-mode .dup-warning{ font-size:16px; padding:14px; }
+  #view-clapper.big-mode .toggle-dot{ font-size:16px; }
+  #view-clapper.big-mode .toggle-circle{ width:20px; height:20px; }
+  #view-clapper.big-mode canvas#whiteboard{ height:150px; }
+
+  /* ---------- Clapperboard ---------- */
+  .clapper-stage{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:18px 26px; gap:14px; overflow:hidden;
+  }
+  .board{
+    width:100%; max-width:900px; background:var(--slate); border-radius:14px;
+    box-shadow:0 20px 50px rgba(0,0,0,.45); overflow:hidden; border:1px solid #000;
+    display:flex; flex-direction:column;
+    transform-origin:top center;
+  }
+  .board.clapping{ animation:clapShake .32s ease; }
+  @keyframes clapShake{ 0%{transform:rotate(0)} 30%{transform:rotate(-1.2deg) translateY(1px)} 55%{transform:rotate(.6deg)} 100%{transform:rotate(0)} }
+
+  .clapper-arm{
+    height:34px; transform-origin:bottom left;
+    background: repeating-linear-gradient(115deg, var(--chalk) 0 24px, var(--slate) 24px 48px);
+    transition: transform .16s cubic-bezier(.4,0,.6,1);
+    transform: rotate(-13deg) translateY(-6px);
+    border-bottom:2px solid #000;
+  }
+  .board.armed .clapper-arm{ transform:rotate(0deg) translateY(0); }
+
+  .board-actions{
+    display:flex; align-items:stretch; gap:1px; background:#000;
+  }
+  .board-actions button{
+    flex:1; padding:14px 8px; font-family:var(--font-display); font-weight:600; font-size:15px; letter-spacing:.04em;
+    display:flex; align-items:center; justify-content:center; gap:8px; transition:filter .1s ease;
+  }
+  .btn-ng{ background:var(--red-dim); color:#ffd7d2; }
+  .btn-ng:hover{ filter:brightness(1.15); }
+  .btn-clap{ background:var(--amber); color:var(--slate); flex:1.3; font-size:17px; }
+  .btn-clap:hover{ filter:brightness(1.08); }
+  .btn-clap:disabled{ opacity:.35; }
+  .btn-ok{ background:var(--green-dim); color:#c9f0d4; }
+  .btn-ok:hover{ filter:brightness(1.15); }
+  .board-actions button:disabled{ opacity:.3; pointer-events:none; }
+
+  .board-body{ padding:16px 20px; }
+  .board-row1{ display:flex; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+  .b-field{ }
+  .b-field .b-label{ font-size:10px; letter-spacing:.08em; color:#8d8a7f; font-family:var(--font-display); text-transform:uppercase; }
+  .b-field .b-value{ font-size:16px; color:var(--chalk); font-family:var(--font-mono); margin-top:2px; }
+  .toggle-pair{ display:flex; gap:10px; margin-top:5px; }
+  .toggle-dot{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:#8d8a7f; }
+  .toggle-circle{
+    width:16px; height:16px; border-radius:50%; border:2px solid #6b6858; position:relative; flex-shrink:0;
+  }
+  .toggle-dot.active .toggle-circle{ border-color:var(--amber); }
+  .toggle-dot.active .toggle-circle::after{
+    content:''; position:absolute; inset:2px; border-radius:50%; background:var(--amber);
+  }
+  .toggle-dot.active{ color:var(--chalk); }
+  .toggle-dot button{ display:flex; align-items:center; gap:6px; }
+
+  .scn-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .scn-box{
+    border:1px solid #3a3a34; border-radius:8px; padding:10px 12px; background:rgba(255,255,255,.02);
+    text-align:center;
+  }
+  .scn-box .b-label{ margin-bottom:6px; }
+  .scn-num{ font-family:var(--font-mono); font-size:36px; color:var(--chalk); line-height:1; overflow-wrap:anywhere; }
+  /* 직접 입력한 씬 이름(예: 12-1, 12A, 추가1)이 길어지면 글자 크기를 줄여 보드 안에 맞춤 */
+  .scn-num.len-m{ font-size:26px; }
+  .scn-num.len-l{ font-size:19px; line-height:1.15; }
+  #view-clapper.big-mode .scn-num.len-m{ font-size:40px; }
+  #view-clapper.big-mode .scn-num.len-l{ font-size:28px; }
+  .scn-sub{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
+  .stepper{ width:30px; height:30px; border-radius:50%; background:#2b2a25; color:var(--chalk); font-size:15px; display:flex; align-items:center; justify-content:center; }
+  .stepper:hover{ background:#3a3931; }
+  .scn-hint{ font-size:10.5px; color:#7d7a6e; margin-top:6px; }
+
+  .divider-line{ height:1px; background:#2c2b26; margin:14px 0; }
+  .dup-warning{
+    margin-top:12px; background:var(--red-dim); color:#ffd7d2; padding:9px 12px; border-radius:8px;
+    font-size:12.5px; font-family:var(--font-display); letter-spacing:.01em; text-align:center;
+  }
+
+  .timecode-row{ display:flex; align-items:center; justify-content:space-between; }
+  .timecode{ font-family:var(--font-mono); font-size:44px; color:var(--amber); letter-spacing:.02em; }
+  .timecode.idle{ color:#5c5a50; }
+  .timecode-status{ font-size:12px; color:#8d8a7f; font-family:var(--font-display); letter-spacing:.05em; }
+  .timecode-status.rec{ color:var(--red); }
+  .timecode-status.rec::before{ content:'● '; }
+
+  .whiteboard-wrap{ margin-top:6px; }
+  .whiteboard-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .whiteboard-head .b-label{ margin:0; }
+  .wb-clear{ font-size:11px; color:#8d8a7f; padding:4px 10px; border-radius:6px; background:rgba(255,255,255,.05); }
+  .wb-clear:hover{ color:var(--chalk); background:rgba(255,255,255,.09); }
+  canvas#whiteboard{
+    width:100%; height:110px; background:#141410; border:1px solid #34332c; border-radius:8px;
+    touch-action:none; display:block;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  }
+
+  /* side panel: quick history */
+  .clapper-side{
+    width:230px; flex-shrink:0; border-left:1px solid var(--border-soft); background:var(--panel);
+    padding:18px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;
+  }
+  .clapper-side h3{ font-size:12.5px; letter-spacing:.05em; color:var(--chalk-dim); text-transform:uppercase; margin-bottom:2px; }
+  .hist-item{ background:var(--panel-2); border-radius:8px; padding:9px 11px; font-size:12.5px; font-family:var(--font-mono); display:flex; justify-content:space-between; }
+  .hist-item .r-ok{ color:#a7d9b6; }
+  .hist-item .r-ng{ color:#f0b3ae; }
+
+  /* ---------- Modals ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:50;
+    backdrop-filter:blur(2px);
+  }
+  .modal-overlay.active{ display:flex; }
+  .modal-box{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-md); padding:22px; width:320px; max-width:90vw; }
+  .modal-box h3{ font-family:var(--font-display); font-size:16px; margin-bottom:16px; text-align:center; }
+  .scene-list{ max-height:280px; overflow-y:auto; scroll-snap-type:y mandatory; border:1px solid var(--border-soft); border-radius:8px; }
+  .scene-list-item{
+    padding:12px; text-align:center; font-family:var(--font-mono); font-size:18px; scroll-snap-align:center;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .scene-list-item:hover{ background:var(--panel-2); color:var(--amber); }
+  .scene-list-item:last-child{ border-bottom:none; }
+  .scene-list-item.active{ color:var(--amber); background:var(--panel-2); }
+  .scene-list-item.custom{ display:flex; align-items:center; justify-content:center; gap:10px; position:relative; }
+  .scene-list-item .tag-extra{ font-family:var(--font-body); font-size:10px; color:var(--bg); background:var(--amber); border-radius:4px; padding:2px 5px; }
+  .scene-list-item .del-scene{ position:absolute; right:8px; top:50%; transform:translateY(-50%); font-family:var(--font-body); font-size:13px; color:var(--chalk-dim); padding:6px 8px; border-radius:6px; }
+  .scene-list-item .del-scene:hover{ color:var(--red); background:var(--panel-3); }
+  .scene-add{ display:flex; gap:8px; margin-bottom:6px; }
+  .scene-add input{
+    flex:1; min-width:0; background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+    color:var(--chalk); padding:11px 12px; font-family:var(--font-mono); font-size:16px; outline:none;
+  }
+  .scene-add input:focus{ border-color:var(--amber); }
+  .scene-add button{ background:var(--amber); color:var(--slate); font-weight:600; border-radius:8px; padding:0 14px; font-family:var(--font-display); font-size:13.5px; white-space:nowrap; }
+  .scene-add-hint{ font-size:11px; color:var(--chalk-dim); margin-bottom:12px; line-height:1.5; }
+  .numpad{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+  .numpad button{ background:var(--panel-2); padding:16px; border-radius:8px; font-family:var(--font-mono); font-size:18px; }
+  .numpad button:hover{ background:var(--panel-3); color:var(--amber); }
+  .numpad-display{ text-align:center; font-family:var(--font-mono); font-size:26px; margin-bottom:14px; background:var(--panel-2); border-radius:8px; padding:12px; }
+  .modal-actions{ display:flex; gap:10px; }
+  .modal-actions button{ flex:1; padding:11px; border-radius:8px; font-family:var(--font-display); font-size:13.5px; }
+  .modal-cancel{ background:var(--panel-2); color:var(--chalk-dim); }
+  .modal-confirm{ background:var(--amber); color:var(--slate); font-weight:600; }
+
+  #sync-chip{
+    position:fixed; left:10px; bottom:calc(env(safe-area-inset-bottom,0px) + 8px); z-index:40; cursor:pointer;
+    font-size:11px; color:var(--chalk-dim); background:var(--panel); border:1px solid var(--border);
+    border-radius:999px; padding:4px 10px; opacity:.9; display:none;
+  }
+  .mem-row{ display:flex; align-items:center; gap:8px; padding:9px 4px; border-bottom:1px solid var(--border); font-size:13px; color:var(--chalk); }
+  .mem-row .mem-email{ flex:1; min-width:0; overflow-wrap:anywhere; }
+  .mem-row .mem-tag{ font-size:10px; color:var(--bg); background:var(--amber); border-radius:4px; padding:2px 6px; }
+  .mem-row .mem-del{ color:var(--chalk-dim); padding:4px 8px; border-radius:6px; font-size:13px; }
+  .mem-row .mem-del:hover{ color:var(--red); background:var(--panel-3); }
+  .mem-note{ font-size:12.5px; color:var(--chalk-dim); line-height:1.6; margin:6px 0 12px; }
+  .mem-big{ width:100%; padding:12px; border-radius:8px; background:var(--amber); color:var(--slate); font-weight:600; font-family:var(--font-display); font-size:14px; margin-bottom:10px; }
+  #sync-chip.live{ color:#a7d9b6; border-color:var(--green-dim); }
+  #sync-chip.warn{ color:#f0b3ae; border-color:var(--red-dim); }
+  .toast{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:var(--panel-3); color:var(--chalk); padding:12px 20px; border-radius:10px; font-size:13.5px;
+    border:1px solid var(--border); z-index:80; transition:all .25s ease; pointer-events:none;
+    display:flex; align-items:center; gap:8px;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- Screen flash (audio/video sync marker) ---------- */
+  .flash-overlay{
+    position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:300;
+  }
+  .flash-overlay.flash-on{ opacity:1; }
+  .flash-overlay.flash-off{ opacity:0; transition:opacity .12s ease-out; }
+
+  @media (max-width: 880px){
+    .clapper-side{ display:none; }
+    .field-row{ grid-template-columns:1fr; }
+    #screen-home{ padding:24px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ HOME ============ -->
+  <div class="screen active" id="screen-home">
+    <div class="home-header">
+      <div>
+        <div class="home-title">클랩<span>!</span></div>
+        <div class="home-sub">진행중인 프로젝트를 선택하거나 새 프로젝트를 만드세요</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="export-btn" onclick="goTo('globalcal')">🗓 전체 캘린더</button>
+        <button class="new-project-btn" onclick="goTo('new')">＋ 새 프로젝트 만들기</button>
+      </div>
+    </div>
+    <div id="project-grid" class="project-grid"></div>
+  </div>
+
+  <!-- ============ GLOBAL CALENDAR (all projects) ============ -->
+  <div class="screen" id="screen-globalcal">
+    <div class="topbar">
+      <button class="back-btn" onclick="goTo('home')">←</button>
+      <div class="topbar-title">전체 캘린더</div>
+    </div>
+    <div class="gcal-body">
+      <div class="calendar-head">
+        <button class="upload-btn" onclick="changeGlobalCalMonth(-1)">‹ 이전</button>
+        <div class="calendar-title" id="gcal-title">-</div>
+        <button class="upload-btn" onclick="changeGlobalCalMonth(1)">다음 ›</button>
+      </div>
+      <div id="gcal-legend" class="gcal-legend"></div>
+      <div class="calendar-weekdays">
+        <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+      </div>
+      <div class="calendar-grid" id="global-calendar-grid"></div>
+    </div>
+  </div>
+
+  <!-- ============ NEW PROJECT ============ -->
+  <div class="screen" id="screen-new">
+    <div class="topbar">
+      <button class="back-btn" onclick="goTo('home')">←</button>
+      <div class="topbar-title">새 프로젝트 만들기</div>
+    </div>
+    <div class="form-shell">
+      <div class="field">
+        <label>작품명 *</label>
+        <input type="text" id="f-title" placeholder="예) 여름밤의 기록">
+        <div class="req-err" id="err-title">작품명을 입력해 주세요.</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>제작사</label>
+          <input type="text" id="f-company" placeholder="예) 클랩 필름스">
+        </div>
+        <div class="field">
+          <label>감독</label>
+          <input type="text" id="f-director" placeholder="예) 김OO">
+        </div>
+      </div>
+      <div class="field">
+        <label>스태프</label>
+        <textarea id="f-staff" placeholder="촬영, 조명, 미술 등 (쉼표로 구분)"></textarea>
+      </div>
+      <div class="field">
+        <label>출연진</label>
+        <textarea id="f-cast" placeholder="배우 이름 (쉼표로 구분)"></textarea>
+      </div>
+      <div class="field">
+        <label>전체 씬 수</label>
+        <input type="number" id="f-total" min="1" placeholder="예) 84">
+      </div>
+      <div class="field">
+        <label>시놉시스 (선택)</label>
+        <textarea id="f-synopsis" placeholder="작품 시놉시스를 적어두세요"></textarea>
+      </div>
+      <div class="field">
+        <label>삭제 비밀번호 *</label>
+        <input type="password" id="f-password" placeholder="프로젝트 삭제 시 필요해요 (4자 이상)">
+        <div class="req-err" id="err-password">삭제 비밀번호를 4자 이상 입력해 주세요.</div>
+      </div>
+      <div class="field">
+        <label>시나리오 업로드 (선택, PDF)</label>
+        <div class="upload-box">
+          <div class="icon">📄</div>
+          <div class="info">
+            <div class="fname" id="f-scenario-name">파일을 선택하세요</div>
+            <div class="fhint">지금 넘어가도 괜찮아요 — 나중에 ‘시나리오’ 탭에서 올릴 수 있어요</div>
+          </div>
+          <label class="upload-btn">
+            선택<input type="file" accept="application/pdf" id="f-scenario" style="display:none">
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label>스토리보드 업로드 (선택, PDF)</label>
+        <div class="upload-box">
+          <div class="icon">🎞️</div>
+          <div class="info">
+            <div class="fname" id="f-storyboard-name">파일을 선택하세요</div>
+            <div class="fhint">지금 넘어가도 괜찮아요 — 나중에 ‘시나리오’ 탭에서 올릴 수 있어요</div>
+          </div>
+          <label class="upload-btn">
+            선택<input type="file" accept="application/pdf" id="f-storyboard" style="display:none">
+          </label>
+        </div>
+      </div>
+      <button class="submit-btn" onclick="createProject()">프로젝트 생성</button>
+    </div>
+  </div>
+
+  <!-- ============ PROJECT SHELL ============ -->
+  <div class="screen" id="screen-project">
+    <div class="proj-topbar">
+      <button class="back-btn" onclick="goTo('home')">←</button>
+      <div class="proj-title" id="proj-title-label">-</div>
+      <button class="back-btn" onclick="openMembersModal()" title="참여자 · 공유" style="font-size:15px;">👥</button>
+      <div class="proj-tabs">
+        <button class="proj-tab" data-view="storage" onclick="switchProjView('storage')">저장소</button>
+        <button class="proj-tab" data-view="clapper" onclick="switchProjView('clapper')">클래퍼보드</button>
+        <button class="proj-tab" data-view="calendar" onclick="switchProjView('calendar')">캘린더</button>
+        <button class="proj-tab" data-view="script" onclick="switchProjView('script')">정보</button>
+      </div>
+    </div>
+    <div class="proj-body">
+
+      <!-- ---- Storage / Archive ---- -->
+      <div class="proj-view" id="view-storage">
+        <div class="storage-head">
+          <div class="storage-progress-card">
+            <div class="storage-progress-text">
+              <div class="big" id="progress-count">0</div>
+              <div class="lbl">완료된 컷 (OK)</div>
+            </div>
+          </div>
+          <div class="export-btns">
+            <button class="export-btn primary" onclick="exportDailyLog('xlsx')">⬇ 오늘의 촬영 리포트 (Excel)</button>
+            <button class="export-btn" onclick="exportDailyLog('pdf')">⬇ 오늘의 리포트 (PDF)</button>
+            <button class="export-btn" onclick="exportFullReport()">⬇ 전체 내보내기 (PDF)</button>
+          </div>
+        </div>
+        <div class="log-table-wrap">
+          <table class="log-table">
+            <thead>
+              <tr><th>씬</th><th>컷</th><th>테이크</th><th>NG 횟수</th><th>낮/밤</th><th>내/외</th><th>소요시간</th><th>기록시각</th><th>베스트</th></tr>
+            </thead>
+            <tbody id="log-tbody"></tbody>
+          </table>
+          <div class="table-empty" id="log-empty" style="display:none;">아직 기록된 씬이 없어요. 클래퍼보드에서 촬영을 시작해 보세요.</div>
+        </div>
+      </div>
+
+      <!-- ---- Clapperboard ---- -->
+      <div class="proj-view" id="view-clapper">
+        <button class="big-mode-btn" id="big-mode-btn" onclick="toggleBigMode()">⤢ 크게 보기</button>
+        <div class="clapper-stage">
+          <div class="board" id="board">
+            <div class="clapper-arm"></div>
+            <div class="board-actions">
+              <button class="btn-ng" id="btn-ng" onclick="pressNG()" disabled>NG</button>
+              <button class="btn-clap" id="btn-clap" onclick="pressClap()">CLAP!</button>
+              <button class="btn-ok" id="btn-ok" onclick="pressOK()" disabled>OK</button>
+            </div>
+            <div class="board-body">
+              <div class="board-row1">
+                <div class="b-field">
+                  <div class="b-label">Production</div>
+                  <div class="b-value" id="b-production">-</div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Direction</div>
+                  <div class="b-value" id="b-direction">-</div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Date</div>
+                  <div class="b-value" id="b-date">-</div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Day / Night</div>
+                  <div class="toggle-pair">
+                    <div class="toggle-dot" id="dot-day"><button onclick="setDayNight('DAY')"><span class="toggle-circle"></span>DAY</button></div>
+                    <div class="toggle-dot" id="dot-night"><button onclick="setDayNight('NIGHT')"><span class="toggle-circle"></span>NIGHT</button></div>
+                  </div>
+                </div>
+                <div class="b-field">
+                  <div class="b-label">Int / Ext</div>
+                  <div class="toggle-pair">
+                    <div class="toggle-dot" id="dot-int"><button onclick="setIntExt('INT')"><span class="toggle-circle"></span>INT</button></div>
+                    <div class="toggle-dot" id="dot-ext"><button onclick="setIntExt('EXT')"><span class="toggle-circle"></span>EXT</button></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="scn-grid">
+                <div class="scn-box">
+                  <div class="b-label">Scene</div>
+                  <div class="scn-num" id="disp-scene">1</div>
+                  <div class="scn-hint" onclick="openSceneModal()" style="cursor:pointer;text-decoration:underline;">탭하여 선택 · 직접 입력</div>
+                </div>
+                <div class="scn-box">
+                  <div class="b-label">Cut</div>
+                  <div class="scn-num" id="disp-cut">1</div>
+                  <div class="scn-hint" onclick="openCutModal()" style="cursor:pointer;text-decoration:underline;">넘버패드 입력</div>
+                </div>
+                <div class="scn-box">
+                  <div class="b-label">Take</div>
+                  <div class="scn-num" id="disp-take">1</div>
+                  <div class="scn-hint" id="take-hint">자동 기록</div>
+                </div>
+              </div>
+
+              <div class="dup-warning" id="dup-warning" style="display:none;">⚠ 이미 완료된 컷입니다 — 계속 진행하면 반복 촬영으로 기록됩니다</div>
+
+              <div class="divider-line"></div>
+
+              <div class="timecode-row">
+                <div>
+                  <div class="timecode idle" id="timecode">00:00:00:00</div>
+                  <div class="timecode-status" id="timecode-status">CLAP! 을 눌러 시작</div>
+                </div>
+              </div>
+
+              <div class="whiteboard-wrap">
+                <div class="whiteboard-head">
+                  <div class="b-label">Notes (화이트보드)</div>
+                  <button class="wb-clear" onclick="clearWhiteboard()">지우기</button>
+                </div>
+                <canvas id="whiteboard"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="clapper-side">
+          <h3>최근 기록</h3>
+          <div id="hist-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+      </div>
+
+      <!-- ---- Info / script viewer ---- -->
+      <div class="proj-view" id="view-script">
+        <div class="info-panel" id="info-panel">
+          <div class="info-grid">
+            <div class="field">
+              <label>작품명</label>
+              <input type="text" id="i-title">
+            </div>
+            <div class="field">
+              <label>제작사</label>
+              <input type="text" id="i-company">
+            </div>
+            <div class="field">
+              <label>감독</label>
+              <input type="text" id="i-director">
+            </div>
+            <div class="field">
+              <label>전체 씬 수</label>
+              <input type="number" id="i-total" min="1">
+            </div>
+          </div>
+          <div class="field">
+            <label>스태프</label>
+            <textarea id="i-staff" style="min-height:40px;"></textarea>
+          </div>
+          <div class="field">
+            <label>출연진</label>
+            <textarea id="i-cast" style="min-height:40px;"></textarea>
+          </div>
+          <div class="field">
+            <label>시놉시스 (선택)</label>
+            <textarea id="i-synopsis" placeholder="작품 시놉시스를 적어두세요" style="min-height:70px;"></textarea>
+          </div>
+          <div class="field">
+            <label>메모 (자유롭게)</label>
+            <textarea id="i-notes" placeholder="촬영 관련 그 외 정보를 자유롭게 적어두세요" style="min-height:90px;"></textarea>
+          </div>
+          <div class="info-grid">
+            <div class="field" style="margin-bottom:0;">
+              <label>생성일</label>
+              <div class="info-static" id="i-createdAt">-</div>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label>삭제 비밀번호</label>
+              <div class="pw-reveal-row">
+                <span class="info-static mono" id="i-password-display">••••••••</span>
+                <button class="upload-btn" id="i-password-toggle" onclick="togglePasswordReveal()">표시</button>
+              </div>
+            </div>
+          </div>
+          <div class="info-actions">
+            <button class="submit-btn" style="margin-top:0;" onclick="saveInfoPanel()">변경사항 저장</button>
+          </div>
+        </div>
+
+        <div class="script-tabs" id="script-tabs">
+          <button class="script-tab active" data-doc="scenario" onclick="switchScriptDoc('scenario')">시나리오</button>
+          <button class="script-tab" data-doc="storyboard" id="tab-storyboard" onclick="switchScriptDoc('storyboard')">스토리보드</button>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+            <span id="doc-current-name" style="font-size:12px; color:var(--chalk-dim); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+            <button class="upload-btn" id="doc-upload-btn" onclick="pickProjectDoc()">＋ 업로드</button>
+            <button class="upload-btn" id="doc-remove-btn" onclick="removeProjectDoc()" style="display:none;">제거</button>
+          </div>
+        </div>
+        <input type="file" accept="application/pdf" id="doc-upload-input" style="display:none">
+        <div class="script-frame-wrap" id="script-frame-wrap"></div>
+      </div>
+
+      <!-- ---- Calendar ---- -->
+      <div class="proj-view" id="view-calendar">
+        <div class="calendar-head">
+          <button class="upload-btn" onclick="changeCalMonth(-1)">‹ 이전</button>
+          <div class="calendar-title" id="cal-title">-</div>
+          <button class="upload-btn" onclick="changeCalMonth(1)">다음 ›</button>
+        </div>
+        <div class="calendar-weekdays">
+          <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Account modal -->
+<div class="modal-overlay" id="modal-account">
+  <div class="modal-box">
+    <h3>공유 계정</h3>
+    <div id="account-body"></div>
+    <div class="modal-actions" style="margin-top:14px;"><button class="modal-cancel" onclick="closeModal('modal-account')">닫기</button></div>
+  </div>
+</div>
+
+<!-- Members modal -->
+<div class="modal-overlay" id="modal-members">
+  <div class="modal-box">
+    <h3>참여자 · 공유</h3>
+    <div id="members-body"></div>
+    <div class="modal-actions" style="margin-top:14px;"><button class="modal-cancel" onclick="closeModal('modal-members')">닫기</button></div>
+  </div>
+</div>
+
+<!-- Scene picker modal -->
+<div class="modal-overlay" id="modal-scene">
+  <div class="modal-box">
+    <h3>씬 선택 / 추가</h3>
+    <div class="scene-add">
+      <input type="text" id="scene-custom-input" maxlength="12" placeholder="예: 12-1, 12A, 추가1" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomScene();}">
+      <button onclick="addCustomScene()">추가</button>
+    </div>
+    <div class="scene-add-hint">추가 촬영 등 기존 씬 이외의 씬은 직접 입력해 기록할 수 있어요.</div>
+    <div class="scene-list" id="scene-list"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="modal-cancel" onclick="closeModal('modal-scene')">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cut numpad modal -->
+<div class="modal-overlay" id="modal-cut">
+  <div class="modal-box">
+    <h3>컷 번호 입력</h3>
+    <div class="numpad-display" id="numpad-display">0</div>
+    <div class="numpad" id="numpad-grid"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('modal-cut')">취소</button>
+      <button class="modal-confirm" onclick="confirmCut()">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete project modal -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal-box">
+    <h3 id="delete-modal-title">프로젝트 삭제</h3>
+
+    <!-- step 1: password -->
+    <div id="delete-step-pw">
+      <div style="font-size:13px; color:var(--chalk-dim); text-align:center; margin-bottom:14px;">
+        <strong id="delete-project-name" style="color:var(--chalk);"></strong> <span id="delete-modal-desc"></span>
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <input type="password" id="delete-pw-input" placeholder="삭제 비밀번호" onkeydown="if(event.key==='Enter') submitDeletePassword();">
+      </div>
+      <div class="req-err" id="delete-pw-err" style="display:none; margin-top:2px; margin-bottom:12px;">비밀번호가 일치하지 않아요.</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeModal('modal-delete')">취소</button>
+        <button class="modal-confirm" style="background:var(--red); color:#fff;" onclick="submitDeletePassword()">다음</button>
+      </div>
+    </div>
+
+    <!-- step 2: final confirmation -->
+    <div id="delete-step-confirm" style="display:none;">
+      <div style="font-size:13px; color:var(--chalk-dim); text-align:center; margin-bottom:8px; line-height:1.7;">
+        <strong id="delete-confirm-name" style="color:var(--chalk);"></strong> 프로젝트와<br>
+        <strong id="delete-confirm-count" style="color:var(--chalk);"></strong>이(가) 모두 지워집니다.
+      </div>
+      <div style="font-size:12.5px; color:var(--red); text-align:center; margin-bottom:16px;">되돌릴 수 없어요. 정말 삭제할까요?</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="backToDeletePassword()">아니요</button>
+        <button class="modal-confirm" style="background:var(--red); color:#fff;" onclick="confirmDeleteProject()">네, 삭제합니다</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Password reveal warning modal -->
+<div class="modal-overlay" id="modal-pw-warning">
+  <div class="modal-box">
+    <h3>⚠ 비밀번호 표시</h3>
+    <div style="font-size:13px; color:var(--chalk-dim); text-align:center; margin-bottom:18px; line-height:1.7;">
+      삭제 비밀번호가 화면에 그대로 표시됩니다.<br>주변에 다른 사람이 없는지 확인하고,<br><strong style="color:var(--chalk);">외부로 유출하지 마세요.</strong>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('modal-pw-warning')">취소</button>
+      <button class="modal-confirm" onclick="confirmPasswordReveal()">확인, 표시할게요</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule / calendar event modal -->
+<div class="modal-overlay" id="modal-schedule">
+  <div class="modal-box" style="width:360px;">
+    <h3 id="schedule-modal-title">일정</h3>
+    <div id="schedule-existing" style="margin-bottom:14px; display:flex; flex-direction:column; gap:8px;"></div>
+    <div class="field">
+      <label>일정 제목</label>
+      <input type="text" id="sch-title" placeholder="예) 씬 12-20 촬영 (한강공원)">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>콜타임</label>
+        <input type="text" id="sch-time" placeholder="예) 09:00">
+      </div>
+      <div class="field">
+        <label>장소</label>
+        <input type="text" id="sch-place" placeholder="예) 한강공원">
+      </div>
+    </div>
+    <div class="field">
+      <label>메모</label>
+      <textarea id="sch-note" style="min-height:44px;" placeholder="선택"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('modal-schedule')">닫기</button>
+      <button class="modal-confirm" onclick="addScheduleItem()">일정 추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- Global calendar day detail modal -->
+<div class="modal-overlay" id="modal-gcal-day">
+  <div class="modal-box" style="width:360px;">
+    <h3 id="gcal-modal-title">일정</h3>
+    <div id="gcal-day-list" style="display:flex; flex-direction:column; gap:8px; max-height:340px; overflow-y:auto;"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="modal-cancel" onclick="closeModal('modal-gcal-day')">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="sync-chip" onclick="openAccountModal()"></div>
+<div class="flash-overlay" id="flash-overlay"></div>
+<audio id="clap-audio" preload="auto" src="data:audio/wav;base64,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JQAoACoAKwAsACsAKgAoACUAIQAdABcADwAHAP//9v/u/+X/3P/U/8z/xP+9/7f/sv+w/6//rv+u/6//sv+1/7n/vv/E/8r/0v/Y/9//5f/t//T//P8DAAsAEwAaACIAKQAvADcAPgBFAEsAUABVAFgAWgBcAFwAXABaAFgAUwBNAEYAPgA2AC4AJQAcABMACgAAAPj/8P/p/+T/3v/a/9b/0v/Q/87/zf/M/83/zv/Q/9H/0v/U/9b/2v/d/+H/5f/q/+7/8//3//z/AQAHAA0AEgAXABsAHwAiACQAJQAmACYAJQAiAB4AGgAVABAACgAEAP7/+P/x/+v/5P/f/9v/1//U/9H/zv/N/8v/y//L/8z/zf/Q/9L/1P/W/9n/3f/h/+b/6//w//b//P8BAAcADwAWAB4AJQAsADIAOAA9AEIARgBJAEwATQBNAEsASQBFAEIAPQA4ADIALAAlAB4AFwAQAAoABAD///r/9P/v/+r/5v/h/97/2//Z/9f/1P/S/9D/z//P/8//0P/S/9T/1//Z/93/4P/m/+v/8f/3//z/AQAGAAsADwAUABcAGwAdAB4AHgAdABwAGwAZABYAEwAQAAwACAADAAAA/f/6//f/8//w/+3/6v/n/+X/4//i/+D/3//d/9z/3P/c/93/3v/f/+L/5P/n/+v/7v/0//n///8EAAsAEQAWABwAIgAnACwAMAA0ADcAOAA5ADkAOQA4ADcANQAyAC8AKwAnACIAHwAbABcAEgAOAAkABAAAAPz/9//z/+//6//m/+L/3v/a/9j/1f/T/9L/0f/R/9H/0v/U/9f/2v/e/+L/5v/r/+//9P/5//7/AQAGAAoADAAPABEAEgAUABUAFQAVABUAFAATABEAEAAPAA4ADAAKAAgABQADAAAA///8//r/9//1//H/7//s/+r/6P/m/+X/5P/k/+T/5f/m/+j/6//v//L/9v/6////AgAHAAsAEAAUABkAHAAfACEAIwAlACcAKAAoACkAKAAoACYAJQAkACIAIQAeABwAGQAWABMADwALAAcABAAAAPz/9//y/+7/6v/m/+L/3//d/9r/2P/X/9b/1v/X/9n/2v/c/9//4v/l/+j/7P/w//P/9//6//3/AAACAAQABwAJAAsADQAOAA8AEAARABIAEwATABMAEwASABEAEAAPAA0ACwAKAAcABAABAP///P/5//f/9P/y//D/7v/t/+v/6//s/+3/7v/v//H/8//1//j/+//+/wAAAwAGAAgACwANAA8AEgAUABYAFwAZABoAGwAbABwAHQAdAB0AHQAcABsAGgAYABYAFAASAA8ACwAHAAQAAAD9//n/9f/x/+7/6//o/+X/4v/h/+D/3//f/9//3//g/+H/4//k/+b/6f/r/+3/7//x//T/9v/5//v//v8AAAEABAAGAAgACgAMAA4AEAARABMAEwAUABQAFAAUABMAEgAQAA4ADAAKAAcABQADAAAA///8//r/+P/2//X/9f/0//T/8//0//T/9f/1//f/+P/5//v//P/9////AAABAAMABAAGAAgACgALAA0ADwAQABIAEwAVABYAFgAXABcAFgAWABUAFAASABAADgALAAkABgADAAAA/v/7//j/9f/y//D/7v/s/+v/6v/p/+j/5//n/+f/5//o/+n/6f/q/+v/7P/t/+//8f/y//T/9v/5//v//f8AAAEABAAHAAkACwANAA8AEAARABIAEwATABMAEwASABEAEAAOAA0ACwAJAAcABQADAAIAAAAAAP7//f/8//v/+v/6//n/+f/4//j/+P/4//j/+P/5//n/+v/7//z//f/+////AAABAAMABQAHAAkACgAMAA0ADgAPABAAEQARABEAEAAPAA4ADQAMAAoACAAGAAQAAgAAAP///f/7//r/+P/2//X/8//y//H/8P/v/+7/7v/t/+z/7P/s/+z/7f/t/+7/7//w//H/8//0//f/+f/7//3/AAABAAMABQAHAAkACwANAA4ADwAPABAAEAAQABAADwAPAA4ADQAMAAsACgAJAAgABwAGAAQAAwACAAEAAAAAAP///v/9//v/+v/6//n/+P/4//j/+P/4//j/+f/5//r/+//9//7/AAAAAAEAAwAEAAYABwAIAAkACgAKAAoACgAKAAoACgAJAAkACAAHAAYABQAEAAMAAgAAAAAA///+//z/+//6//n/+P/2//X/9P/z//L/8f/w//D/8P/w//D/8P/w//H/8v/0//X/9//4//r//P/+/wAAAAACAAQABgAHAAgACQAKAAsADAAMAAwADQANAA0ADAAMAAwADAALAAsACgAJAAkACAAHAAYABQADAAIAAQAAAP///v/9//z/+//6//n/+f/4//j/+P/4//n/+f/6//v//P/9//7///8AAAAAAQACAAIAAwAEAAQABQAFAAYABgAGAAYABgAFAAUABQAFAAUABAAEAAMAAgABAAAAAAAAAP///f/8//v/+v/4//f/9v/2//X/9P/0//P/8//0//T/9P/1//b/9//4//n/+v/7//3//v///wAAAQACAAMABAAFAAYABwAIAAgACQAJAAoACgALAAsACwALAAsACwALAAoACgAJAAgABwAGAAUABAACAAEAAAAAAP///v/9//z/+//6//r/+v/5//n/+f/6//r/+v/7//v//P/9//3//v/+//////8AAAAAAAABAAEAAgACAAIAAwADAAQABAAEAAQABAAEAAQABAAEAAMAAwACAAEAAAAAAP///v/9//z/+//6//r/+f/4//j/+P/4//j/+P/4//j/+P/5//n/+v/7//z//P/9//7//v///wAAAAABAAIAAwADAAQABQAGAAcABwAIAAkACQAKAAoACgAKAAoACgAJAAkACAAHAAYABQAFAAQAAwABAAAAAAD//////v/9//3//P/8//v/+//7//v/+//7//v/+//7//v/+//7//z//P/9//3//v/+//////8AAAAAAAABAAIAAgADAAMAAwAEAAQABAAEAAQAAwADAAIAAgABAAEAAAAAAAAA///+//7//f/9//z//P/8//v/+//7//v/+//7//v/+//7//v//P/8//z//f/9//7//v///wAAAAAAAAEAAgADAAQABAAFAAYABgAHAAcACAAIAAgACAAIAAgABwAHAAYABgAFAAUABAADAAIAAgABAAAAAAAAAP/////+//7//f/9//z//P/8//v/+//7//v/+//7//v/+//7//v//P/8//3//f/+//7///8AAAAAAAAAAAEAAgACAAIAAwADAAMAAwADAAMAAgACAAIAAgABAAEAAAAAAAAAAAAAAAAA/////////v/+//7//v/9//3//f/9//3//P/8//3//f/9//3//f/+//7//////wAAAAAAAAEAAgACAAMABAAEAAUABQAFAAUABgAGAAYABgAGAAUABQAFAAQABAAEAAMAAwADAAIAAgABAAEAAAAAAAAA//////7//v/9//3//P/8//z/+//7//v/+//7//v/+//7//z//P/9//3//v/+//////8AAAAAAAAAAAAAAQABAAEAAQACAAIAAgACAAIAAgACAAIAAgACAAEAAQABAAEAAQAAAAAAAAAAAAAAAAD////////+//7//v/+//7//f/9//3//v/+//7//v////////8AAAAAAAAAAAEAAQACAAIAAgADAAMAAwADAAMABAAEAAQABAAEAAQABAAEAAMAAwADAAMAAgACAAIAAQABAAEAAAAAAAAA//////7//v/9//3//f/8//z//P/8//z//P/8//z//P/8//3//f/9//7//v/+/////////wAAAAAAAAAAAAAAAAEAAQABAAEAAQACAAIAAgACAAIAAgACAAIAAgACAAIAAQABAAEAAAAAAAAAAAAAAAAA//////////////7//v/+//7/////////////////AAAAAAAAAAAAAAAAAAABAAEAAQABAAEAAgACAAIAAgACAAMAAwADAAMAAwADAAMAAwACAAIAAgACAAEAAQAAAAAAAAAAAAAA/////////v/+//7//f/9//3//f/9//3//f/9//3//f/9//3//v/+//7//v/+////////////AAAAAAAAAAAAAAAAAQABAAEAAQACAAIAAgACAAIAAgACAAIAAgACAAEAAQABAAEAAQAAAAAAAAAAAAAAAAAAAAAAAAD//////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAQABAAEAAQACAAIAAgACAAIAAgACAAIAAgACAAEAAQABAAEAAAAAAAAAAAAAAAAAAAD///////////7//v/+//7//v/+//7//v/+//7//v/+//7//v/+//7//v///////////wAAAAAAAAAAAAAAAAAAAQABAAEAAQACAAIAAgACAAIAAgACAAIAAgABAAEAAQABAAEAAQAAAAAAAAA="></audio>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ============================================================
+   STATE
+============================================================ */
+const STORAGE_KEY = 'clapper_app_state_v1';
+let state = { projects: [], currentProjectId: null };
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) state = JSON.parse(raw);
+  }catch(e){ console.warn('state load failed', e); }
+  state.projects.forEach(normalizeProject);
+}
+function normalizeProject(p){
+  if(!p.ngCounters) p.ngCounters = p.takeCounters || {};
+  delete p.takeCounters;
+  if(!p.completed) p.completed = {};
+  if(!Array.isArray(p.records)) p.records = [];
+  // older builds logged NG attempts as their own records; those are stale under
+  // the current model (only completed OK takes are logged) and cause false
+  // "already completed" warnings, so drop anything that isn't a real OK take.
+  p.records = p.records.filter(r=>r.result==='OK');
+  // older builds stored dateISO from toISOString() (UTC), which put late-evening
+  // Korean shoots on the previous day. Recompute from the timestamp, in local time.
+  p.records.forEach(r=>{ if(r.ts) r.dateISO = localISO(new Date(r.ts)); if(r.best===undefined) r.best=false; });
+  if(p.deletePassword===undefined) p.deletePassword = '';
+  if(p.synopsis===undefined) p.synopsis = '';
+  if(p.notes===undefined) p.notes = '';
+  if(!p.schedule) p.schedule = {};
+  // 씬은 이제 숫자뿐 아니라 직접 입력한 이름(12-1, 12A 등)도 가능 → 항상 문자열로 통일
+  if(!Array.isArray(p.customScenes)) p.customScenes = [];
+  p.customScenes = p.customScenes.map(String);
+  p.records.forEach(r=>{ r.scene = String(r.scene); });
+  return p;
+}
+function saveLocal(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    // likely quota exceeded (large PDFs) -> retry without heavy pdf data
+    try{
+      const lite = JSON.parse(JSON.stringify(state));
+      lite.projects.forEach(p=>{ p._pdfWarn = true; if(p.scenarioPdf) p.scenarioPdf.dataUrl=''; if(p.storyboardPdf) p.storyboardPdf.dataUrl=''; });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(lite));
+      showToast('저장공간이 부족해 PDF는 이번 세션에서만 유지돼요');
+    }catch(e2){ console.warn('state save failed', e2); }
+  }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+function getProject(id){ return state.projects.find(p=>p.id===id); }
+function currentProject(){ return getProject(state.currentProjectId); }
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+function goTo(screen){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+screen).classList.add('active');
+  if(screen==='home') renderHome();
+  if(screen==='globalcal') renderGlobalCalendar();
+}
+
+function openProject(id){
+  state.currentProjectId = id; saveState();
+  const p = getProject(id);
+  document.getElementById('proj-title-label').textContent = p.title;
+  goTo('project');
+  switchProjView('storage');
+}
+
+function switchProjView(view){
+  document.querySelectorAll('.proj-tab').forEach(t=>t.classList.toggle('active', t.dataset.view===view));
+  document.querySelectorAll('.proj-view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if(view==='storage') renderStorage();
+  if(view==='clapper') renderClapper();
+  if(view==='script') renderScript();
+  if(view==='calendar') renderCalendar();
+}
+
+/* ============================================================
+   HOME
+============================================================ */
+function renderHome(){
+  const grid = document.getElementById('project-grid');
+  if(state.projects.length===0){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="glyph">🎬</div>
+      <div>아직 만든 프로젝트가 없어요.<br>‘새 프로젝트 만들기’로 첫 촬영을 준비해 보세요.</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = state.projects.map(p=>{
+    const done = (p.records||[]).length;
+    const total = p.totalScenes || 0;
+    return `<div class="project-card" onclick="openProject('${p.id}')">
+      <div class="clap-stripe"></div>
+      <div class="card-del" onclick="event.stopPropagation(); deleteProject('${p.id}')">✕</div>
+      <div class="body">
+        <div class="p-title">${escapeHtml(p.title)}</div>
+        <div class="p-meta">감독 ${escapeHtml(p.director||'-')} · 제작 ${escapeHtml(p.company||'-')}<br>생성일 ${p.createdAt} · 전체 씬 ${total||'-'}개</div>
+        <div class="p-progress">
+          <div class="progress-label">완료된 컷 ${done}개</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let deleteTargetId = null;
+function deleteProject(id){
+  const p = getProject(id);
+  if(Sync.email && p.ownerEmail && p.ownerEmail!==Sync.email){ showToast('프로젝트를 만든 사람만 삭제할 수 있어요'); return; }
+  deleteTargetId = id;
+  document.getElementById('delete-pw-err').style.display='none';
+  document.getElementById('delete-pw-input').value='';
+  document.getElementById('delete-project-name').textContent = p.title;
+  const hasPw = !!p.deletePassword;
+  document.getElementById('delete-pw-input').style.display = hasPw ? 'block':'none';
+  document.getElementById('delete-modal-desc').textContent = hasPw
+    ? '을(를) 삭제하려면 삭제 비밀번호를 입력하세요.'
+    : '을(를) 삭제할까요? (이 프로젝트는 비밀번호가 설정되어 있지 않아요)';
+  if(Sync.email && (p.members||[]).length>1) document.getElementById('delete-modal-desc').textContent += ' 공유 중이라 함께 쓰는 모든 사람에게서도 삭제돼요.';
+  showDeleteStep('pw');
+  document.getElementById('modal-delete').classList.add('active');
+  if(hasPw) setTimeout(()=>document.getElementById('delete-pw-input').focus(), 50);
+}
+
+function showDeleteStep(step){
+  const isPw = step==='pw';
+  document.getElementById('delete-step-pw').style.display = isPw ? 'block':'none';
+  document.getElementById('delete-step-confirm').style.display = isPw ? 'none':'block';
+  document.getElementById('delete-modal-title').textContent = isPw ? '프로젝트 삭제' : '한 번 더 확인할게요';
+}
+function backToDeletePassword(){
+  document.getElementById('delete-pw-input').value='';
+  document.getElementById('delete-pw-err').style.display='none';
+  showDeleteStep('pw');
+  const p = getProject(deleteTargetId);
+  if(p && p.deletePassword) setTimeout(()=>document.getElementById('delete-pw-input').focus(), 50);
+}
+
+/* step 1 — verify the password, then ask again before anything is removed */
+function submitDeletePassword(){
+  const p = getProject(deleteTargetId);
+  if(!p){ closeModal('modal-delete'); return; }
+  const input = document.getElementById('delete-pw-input').value;
+  if(p.deletePassword && input !== p.deletePassword){
+    document.getElementById('delete-pw-err').style.display='block';
+    return;
+  }
+  document.getElementById('delete-pw-err').style.display='none';
+  document.getElementById('delete-confirm-name').textContent = p.title;
+  const n = (p.records||[]).length;
+  document.getElementById('delete-confirm-count').textContent = n>0 ? `촬영 기록 ${n}건` : '저장된 모든 내용';
+  showDeleteStep('confirm');
+}
+
+/* step 2 — the actual delete */
+function confirmDeleteProject(){
+  const p = getProject(deleteTargetId);
+  if(!p){ closeModal('modal-delete'); return; }
+  state.projects = state.projects.filter(x=>x.id!==deleteTargetId);
+  if(state.currentProjectId===deleteTargetId) state.currentProjectId=null;
+  deleteTargetId = null;
+  saveState();
+  closeModal('modal-delete');
+  renderHome();
+  showToast('프로젝트가 삭제되었어요');
+}
+
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============================================================
+   NEW PROJECT
+============================================================ */
+let pendingScenario = null, pendingStoryboard = null;
+
+document.getElementById('f-scenario').addEventListener('change', e=>handleUpload(e,'scenario'));
+document.getElementById('f-storyboard').addEventListener('change', e=>handleUpload(e,'storyboard'));
+
+function handleUpload(e, kind){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const payload = {name:file.name, dataUrl:reader.result};
+    if(kind==='scenario'){ pendingScenario = payload; document.getElementById('f-scenario-name').textContent = file.name; }
+    else{ pendingStoryboard = payload; document.getElementById('f-storyboard-name').textContent = file.name; }
+  };
+  reader.readAsDataURL(file);
+}
+
+function createProject(){
+  const title = document.getElementById('f-title').value.trim();
+  const password = document.getElementById('f-password').value;
+  let ok = true;
+  if(!title){ document.getElementById('err-title').style.display='block'; ok=false; }
+  else document.getElementById('err-title').style.display='none';
+  if(!password || password.length<4){ document.getElementById('err-password').style.display='block'; ok=false; }
+  else document.getElementById('err-password').style.display='none';
+  if(!ok) return;
+
+  const p = {
+    id: uid(),
+    title,
+    company: document.getElementById('f-company').value.trim(),
+    director: document.getElementById('f-director').value.trim(),
+    staff: document.getElementById('f-staff').value.trim(),
+    cast: document.getElementById('f-cast').value.trim(),
+    totalScenes: parseInt(document.getElementById('f-total').value)||0,
+    synopsis: document.getElementById('f-synopsis').value.trim(),
+    notes: '',
+    deletePassword: password,
+    scenarioPdf: pendingScenario,
+    storyboardPdf: pendingStoryboard,
+    createdAt: todayISO(),
+    ngCounters: {},
+    completed: {},
+    records: [],
+    schedule: {}
+  };
+  state.projects.push(p);
+  saveState();
+
+  // reset form
+  ['f-title','f-company','f-director','f-staff','f-cast','f-total','f-synopsis','f-password'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-scenario-name').textContent='파일을 선택하세요';
+  document.getElementById('f-storyboard-name').textContent='파일을 선택하세요';
+  pendingScenario=null; pendingStoryboard=null;
+
+  openProject(p.id);
+}
+
+/* ============================================================
+   STORAGE / ARCHIVE
+============================================================ */
+/* local (device timezone) YYYY-MM-DD — toISOString() would roll the date back
+   by a day for anyone east of UTC, which is why the board and the archive
+   used to disagree. */
+function localISO(d){
+  d = d || new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function todayISO(){ return localISO(new Date()); }
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+}
+function todayLabel(){
+  const d = new Date();
+  const days=['일','월','화','수','목','금','토'];
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} (${days[d.getDay()]})`;
+}
+
+function formatDateKR(dateISO){
+  const d = new Date(dateISO+'T00:00:00');
+  return `${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+
+function renderStorage(){
+  const p = currentProject(); if(!p) return;
+  const done = p.records.length;
+  document.getElementById('progress-count').textContent = done;
+
+  const tbody = document.getElementById('log-tbody');
+  const recs = [...p.records].sort((a,b)=>b.ts-a.ts);
+  if(recs.length===0){
+    tbody.innerHTML='';
+    document.getElementById('log-empty').style.display='block';
+    return;
+  }
+  document.getElementById('log-empty').style.display='none';
+
+  const dates = [];
+  recs.forEach(r=>{ if(!dates.includes(r.dateISO)) dates.push(r.dateISO); });
+
+  let html = '';
+  dates.forEach((d, idx)=>{
+    if(idx>0) html += `<tr class="date-divider-row"><td colspan="9"><div class="date-divider"></div></td></tr>`;
+    html += `<tr class="date-group-row"><td colspan="9" class="date-group-label">${formatDateKR(d)}에 찍은 씬</td></tr>`;
+    recs.filter(r=>r.dateISO===d).forEach(r=>{
+      html += `<tr>
+        <td>${escapeHtml(r.scene)}</td><td>${r.cutLabel||r.cut}</td><td>${r.take}</td>
+        <td><span class="pill ${r.ngCount>0?'ng':'ok'}">${r.ngCount>0 ? r.ngCount+'회' : '없음'}</span></td>
+        <td>${r.dayNight||'-'}</td><td>${r.intExt||'-'}</td>
+        <td>${r.duration}</td><td>${formatDateKR(d)} ${r.timeLabel}</td>
+        <td><button class="best-star ${r.best?'active':''}" onclick="markBest('${r.id}')" title="베스트 샷으로 표시">${r.best?'★':'☆'}</button></td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+}
+
+/* ---- best shot: mark which take of a reshot scene/cut is the keeper ---- */
+function markBest(recordId){
+  const p = currentProject(); if(!p) return;
+  const rec = p.records.find(r=>r.id===recordId); if(!rec) return;
+  const groupKey = rec.scene+'-'+rec.cut;
+  const turningOn = !rec.best;
+  p.records.forEach(r=>{ if((r.scene+'-'+r.cut)===groupKey) r.best=false; });
+  rec.best = turningOn;
+  saveState();
+  renderStorage();
+  showToast(turningOn ? `베스트 샷 · S${rec.scene}-C${rec.cutLabel||rec.cut}` : '베스트 표시를 해제했어요');
+}
+
+const EXPORT_HEADERS = ['날짜','씬','컷','테이크','NG 횟수','낮/밤','내/외','소요시간','기록시각','베스트'];
+function exportRow(r){
+  return [
+    fullDateKR(r.dateISO),
+    r.scene,
+    r.cutLabel||r.cut,
+    r.take,
+    r.ngCount||0,
+    r.dayNight||'-',
+    r.intExt||'-',
+    r.duration,
+    r.timeLabel,
+    r.best ? '★' : ''
+  ];
+}
+function fullDateKR(dateISO){
+  if(!dateISO) return '-';
+  const d = new Date(dateISO+'T00:00:00');
+  if(isNaN(d)) return dateISO;
+  const days=['일','월','화','수','목','금','토'];
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} (${days[d.getDay()]})`;
+}
+
+function exportDailyLog(fmt){
+  const p = currentProject(); if(!p) return;
+  const today = todayISO();                       // local date, matches the board
+  const rows = p.records.filter(r=>r.dateISO===today).sort((a,b)=>a.ts-b.ts);
+  if(rows.length===0){ showToast('오늘 완료(OK)된 씬 기록이 없어요'); return; }
+
+  const filenameBase = `${p.title}_${todayStr()}_Daily_Log`;
+
+  if(fmt==='xlsx'){
+    const data = [
+      [p.title],
+      [`촬영일 ${todayLabel()}`, '', `감독 ${p.director||'-'}`, '', `제작 ${p.company||'-'}`],
+      [],
+      EXPORT_HEADERS
+    ];
+    rows.forEach(r=> data.push(exportRow(r)));
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:16},{wch:10},{wch:8},{wch:8},{wch:9},{wch:8},{wch:8},{wch:11},{wch:12},{wch:8}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Daily Log');
+    const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    offerDownload(filenameBase+'.xlsx', new Blob([out], {type:'application/octet-stream'}));
+  }else{
+    exportPdf(p, rows, filenameBase+'.pdf');
+  }
+}
+
+/* jsPDF's built-in fonts carry no Hangul, which is where the 외계어 came from.
+   So every page is painted on a canvas with the browser's own Korean fonts and
+   placed into the PDF as a full-page image.
+   opts.heading / opts.subtitle override the daily-log title block.
+   opts.cover, when provided as a function(c, W, H, SCALE), draws one extra
+   page before the table — used by the full project report. */
+function exportPdf(p, rows, filename, opts={}){
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+    const PW = 297, PH = 210;               // A4 landscape, mm
+    const SCALE = 4;                         // px per mm
+    const W = PW*SCALE, H = PH*SCALE;
+
+    const colW = [0.12,0.08,0.07,0.08,0.09,0.09,0.09,0.13,0.15,0.10]; // fractions of table width
+    const marginX = 14*SCALE;
+    const tableW = W - marginX*2;
+    const colX = []; let acc = marginX;
+    colW.forEach(w=>{ colX.push(acc); acc += w*tableW; });
+
+    const rowH = 9*SCALE;
+    const headerTop = 44*SCALE;
+    const firstRowY = headerTop + 12*SCALE;
+    const perPage = Math.floor((H - firstRowY - 14*SCALE) / rowH);
+    const tablePages = Math.max(1, Math.ceil(rows.length/perPage));
+    const coverPages = opts.cover ? 1 : 0;
+    const totalPages = tablePages + coverPages;
+    const heading = opts.heading || `${p.title} — 오늘의 촬영 리포트`;
+    const subtitle = opts.subtitle || `촬영일 ${todayLabel()}   ·   감독 ${p.director||'-'}   ·   제작 ${p.company||'-'}   ·   완료 컷 ${rows.length}개`;
+
+    let pageIndex = 0;
+
+    if(opts.cover){
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const c = canvas.getContext('2d');
+      c.fillStyle = '#ffffff'; c.fillRect(0,0,W,H);
+      c.textBaseline = 'alphabetic';
+      opts.cover(c, W, H, SCALE);
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, PW, PH);
+      pageIndex++;
+    }
+
+    for(let pg=0; pg<tablePages; pg++){
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const c = canvas.getContext('2d');
+
+      c.fillStyle = '#ffffff'; c.fillRect(0,0,W,H);
+      c.textBaseline = 'alphabetic';
+
+      // title block
+      c.fillStyle = '#111111';
+      c.font = `600 ${7.5*SCALE}px "Oswald", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      c.fillText(heading, marginX, 22*SCALE);
+
+      c.fillStyle = '#555555';
+      c.font = `${4*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      c.fillText(subtitle, marginX, 31*SCALE);
+
+      // header row
+      c.fillStyle = '#f0efe9';
+      c.fillRect(marginX, headerTop-6.5*SCALE, tableW, 10*SCALE);
+      c.fillStyle = '#333333';
+      c.font = `600 ${4.1*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      EXPORT_HEADERS.forEach((h,i)=> c.fillText(h, colX[i]+1.5*SCALE, headerTop));
+
+      c.strokeStyle = '#cccccc'; c.lineWidth = 0.6*SCALE;
+      c.beginPath(); c.moveTo(marginX, headerTop+3.5*SCALE); c.lineTo(marginX+tableW, headerTop+3.5*SCALE); c.stroke();
+
+      // data rows
+      const slice = rows.slice(pg*perPage, (pg+1)*perPage);
+      c.font = `${4.1*SCALE}px "Space Mono", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", monospace`;
+      slice.forEach((r, idx)=>{
+        const y = firstRowY + idx*rowH;
+        if(idx%2===1){ c.fillStyle='#fafaf7'; c.fillRect(marginX, y-5.5*SCALE, tableW, rowH); }
+        c.fillStyle = '#1a1a1a';
+        exportRow(r).forEach((v,i)=> c.fillText(String(v), colX[i]+1.5*SCALE, y));
+        c.strokeStyle = '#eeeeee'; c.lineWidth = 0.4*SCALE;
+        c.beginPath(); c.moveTo(marginX, y+3.5*SCALE); c.lineTo(marginX+tableW, y+3.5*SCALE); c.stroke();
+      });
+
+      // footer
+      c.fillStyle = '#888888';
+      c.font = `${3.4*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      c.fillText(`클랩! Clapperboard   ·   ${pageIndex+1} / ${totalPages}`, marginX, H-8*SCALE);
+
+      if(pageIndex>0) doc.addPage('a4','landscape');
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, PW, PH);
+      pageIndex++;
+    }
+
+    offerDownload(filename, doc.output('blob'));
+  }catch(e){
+    console.warn('pdf export failed', e);
+    showToast('PDF를 만드는 데 실패했어요');
+  }
+}
+
+/* ---- full project report: every record + all project info, one PDF ---- */
+function exportFullReport(){
+  const p = currentProject(); if(!p) return;
+  const rows = [...p.records].sort((a,b)=>a.ts-b.ts);
+  if(rows.length===0){ showToast('아직 기록된 씬이 없어요'); return; }
+
+  const done = rows.length;
+  const total = p.totalScenes||0;
+  const bestCount = rows.filter(r=>r.best).length;
+  const filenameBase = `${p.title}_전체리포트_${todayStr()}`;
+
+  const cover = (c, W, H, SCALE)=>{
+    const marginX = 16*SCALE;
+    let y = 26*SCALE;
+    c.fillStyle = '#111111';
+    c.font = `700 ${11*SCALE}px "Oswald", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+    c.fillText(p.title, marginX, y); y += 12*SCALE;
+
+    c.fillStyle = '#555555';
+    c.font = `${4.2*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+    c.fillText(`전체 프로젝트 리포트 · 생성 ${todayLabel()}`, marginX, y); y += 12*SCALE;
+
+    const meta = [
+      ['제작사', p.company||'-'], ['감독', p.director||'-'],
+      ['생성일', fullDateKR(p.createdAt)], ['전체 씬 수', total?`${total}개`:'-'],
+      ['완료된 컷', `${done}개`], ['베스트 샷 표시', `${bestCount}개`],
+    ];
+    c.font = `${4*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+    let mx = marginX, my = y, col=0;
+    meta.forEach(([k,v])=>{
+      c.fillStyle = '#888888'; c.fillText(k, mx, my);
+      c.fillStyle = '#1a1a1a'; c.fillText(String(v), mx+22*SCALE, my);
+      col++;
+      if(col%3===0){ mx = marginX; my += 8*SCALE; }
+      else{ mx += 55*SCALE; }
+    });
+    y = my + (col%3===0 ? 4*SCALE : 12*SCALE);
+
+    const block = (label, text)=>{
+      if(!text) return;
+      c.fillStyle = '#888888'; c.font = `600 ${4*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      c.fillText(label, marginX, y); y += 6.5*SCALE;
+      c.fillStyle = '#222222'; c.font = `${3.8*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+      const maxW = W - marginX*2;
+      const words = text.split('');   // wrap by character — safest for mixed Hangul/Latin
+      let line = '';
+      words.forEach(ch=>{
+        const test = line+ch;
+        if(c.measureText(test).width > maxW){ c.fillText(line, marginX, y); y += 6*SCALE; line = ch; }
+        else line = test;
+      });
+      if(line){ c.fillText(line, marginX, y); y += 6*SCALE; }
+      y += 6*SCALE;
+    };
+    block('스태프', p.staff);
+    block('출연진', p.cast);
+    block('시놉시스', p.synopsis);
+    block('메모', p.notes);
+
+    c.fillStyle = '#888888';
+    c.font = `${3.4*SCALE}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+    c.fillText(`클랩! Clapperboard`, marginX, H-8*SCALE);
+  };
+
+  exportPdf(p, rows, filenameBase+'.pdf', {
+    heading: `${p.title} — 전체 촬영 기록`,
+    subtitle: `총 ${done}개 컷 완료   ·   베스트 샷 ${bestCount}개   ·   생성 ${todayLabel()}`,
+    cover
+  });
+}
+
+async function offerDownload(filename, blob){
+  try{
+    const downloads = await claude.use('downloads');
+    if(downloads){
+      await downloads.save({filename, data: blob});
+      showToast('저장되었습니다: '+filename);
+      return;
+    }
+  }catch(e){ /* fall through to browser download */ }
+  try{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    showToast('다운로드를 시작했어요');
+  }catch(e){ showToast('다운로드에 실패했어요'); }
+}
+
+/* ============================================================
+   SCRIPT VIEWER
+============================================================ */
+let currentScriptDoc = 'scenario';
+const DOC_LABEL = { scenario:'시나리오', storyboard:'스토리보드' };
+
+function renderScript(){
+  const p = currentProject(); if(!p) return;
+  renderInfoPanel();
+  switchScriptDoc(currentScriptDoc);
+}
+
+/* ---- project info panel ---- */
+function renderInfoPanel(){
+  const p = currentProject(); if(!p) return;
+  document.getElementById('i-title').value = p.title||'';
+  document.getElementById('i-company').value = p.company||'';
+  document.getElementById('i-director').value = p.director||'';
+  document.getElementById('i-total').value = p.totalScenes||'';
+  document.getElementById('i-staff').value = p.staff||'';
+  document.getElementById('i-cast').value = p.cast||'';
+  document.getElementById('i-synopsis').value = p.synopsis||'';
+  document.getElementById('i-notes').value = p.notes||'';
+  document.getElementById('i-createdAt').textContent = p.createdAt ? fullDateKR(p.createdAt) : '-';
+  // password stays masked whenever the tab is (re)rendered — every visit starts hidden
+  pwRevealed = false;
+  document.getElementById('i-password-display').textContent = '•'.repeat(Math.max(8, (p.deletePassword||'').length));
+  document.getElementById('i-password-toggle').textContent = '표시';
+}
+
+function saveInfoPanel(){
+  const p = currentProject(); if(!p) return;
+  const title = document.getElementById('i-title').value.trim();
+  if(!title){ showToast('작품명은 비워둘 수 없어요'); return; }
+  p.title = title;
+  p.company = document.getElementById('i-company').value.trim();
+  p.director = document.getElementById('i-director').value.trim();
+  p.totalScenes = parseInt(document.getElementById('i-total').value)||0;
+  p.staff = document.getElementById('i-staff').value.trim();
+  p.cast = document.getElementById('i-cast').value.trim();
+  p.synopsis = document.getElementById('i-synopsis').value.trim();
+  p.notes = document.getElementById('i-notes').value;
+  if(pwRevealed){
+    // the field was left editable while revealed — pick up any change to the password itself
+    const shown = document.getElementById('i-password-display').textContent;
+    if(shown && shown !== '(비밀번호 없음)' && shown !== p.deletePassword) p.deletePassword = shown;
+  }
+  saveState();
+  document.getElementById('proj-title-label').textContent = p.title;
+  renderHistList();
+  showToast('저장했어요');
+}
+
+let pwRevealed = false;
+function togglePasswordReveal(){
+  if(pwRevealed){
+    // hide again, no warning needed to go back to masked
+    const p = currentProject(); if(!p) return;
+    pwRevealed = false;
+    document.getElementById('i-password-display').textContent = '•'.repeat(Math.max(8,(p.deletePassword||'').length));
+    document.getElementById('i-password-display').removeAttribute('contenteditable');
+    document.getElementById('i-password-toggle').textContent = '표시';
+    return;
+  }
+  document.getElementById('modal-pw-warning').classList.add('active');
+}
+function confirmPasswordReveal(){
+  const p = currentProject();
+  closeModal('modal-pw-warning');
+  if(!p) return;
+  pwRevealed = true;
+  const el = document.getElementById('i-password-display');
+  el.textContent = p.deletePassword || '(비밀번호 없음)';
+  el.setAttribute('contenteditable','true');
+  document.getElementById('i-password-toggle').textContent = '숨기기';
+}
+function switchScriptDoc(doc){
+  currentScriptDoc = doc;
+  document.querySelectorAll('.script-tab').forEach(t=>t.classList.toggle('active', t.dataset.doc===doc));
+  const p = currentProject(); if(!p) return;
+  const wrap = document.getElementById('script-frame-wrap');
+  const file = doc==='scenario' ? p.scenarioPdf : p.storyboardPdf;
+  const has = !!(file && file.dataUrl);
+
+  document.getElementById('doc-current-name').textContent = has ? file.name : '';
+  document.getElementById('doc-upload-btn').textContent = has ? '교체' : '＋ 업로드';
+  document.getElementById('doc-remove-btn').style.display = has ? 'inline-block':'none';
+
+  if(!has){
+    wrap.innerHTML = `<div class="script-empty">
+      <div class="glyph">${doc==='scenario'?'📄':'🎞️'}</div>
+      <div>아직 업로드된 ${DOC_LABEL[doc]}이(가) 없어요</div>
+      <button class="export-btn primary" style="margin-top:6px;" onclick="pickProjectDoc()">＋ ${DOC_LABEL[doc]} PDF 업로드</button>
+    </div>`;
+    return;
+  }
+  wrap.innerHTML = `<iframe src="${file.dataUrl}"></iframe>`;
+}
+
+/* upload a scenario / storyboard at any time after the project was created */
+function pickProjectDoc(){ document.getElementById('doc-upload-input').click(); }
+
+document.getElementById('doc-upload-input').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  e.target.value = '';                   // allow re-picking the same file later
+  if(!file) return;
+  if(file.type !== 'application/pdf'){ showToast('PDF 파일만 올릴 수 있어요'); return; }
+  const p = currentProject(); if(!p) return;
+  const kind = currentScriptDoc;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const payload = { name:file.name, dataUrl:reader.result };
+    if(kind==='scenario') p.scenarioPdf = payload; else p.storyboardPdf = payload;
+    saveState();
+    switchScriptDoc(kind);
+    showToast(`${DOC_LABEL[kind]}을(를) 불러왔어요 · ${file.name}`);
+  };
+  reader.onerror = ()=> showToast('파일을 읽지 못했어요');
+  reader.readAsDataURL(file);
+});
+
+function removeProjectDoc(){
+  const p = currentProject(); if(!p) return;
+  const kind = currentScriptDoc;
+  if(kind==='scenario') p.scenarioPdf = null; else p.storyboardPdf = null;
+  saveState();
+  switchScriptDoc(kind);
+  showToast(`${DOC_LABEL[kind]}을(를) 제거했어요`);
+}
+
+/* ============================================================
+   CLAPPERBOARD
+============================================================ */
+let board = { scene:'1', cut:1, take:1, dayNight:null, intExt:null, running:false, startTime:0, timerHandle:null, elapsedMs:0 };
+
+function renderClapper(){
+  const p = currentProject(); if(!p) return;
+  document.getElementById('b-production').textContent = p.title;
+  document.getElementById('b-direction').textContent = p.director || '-';
+  document.getElementById('b-date').textContent = todayLabel();
+  updateSceneCutDisplay();
+  updateToggleUI();
+  renderHistList();
+  resizeWhiteboard();
+}
+
+/* ---- large slate mode: bigger board + UI for shooting from further away ---- */
+function toggleBigMode(){
+  const view = document.getElementById('view-clapper');
+  const on = view.classList.toggle('big-mode');
+  document.getElementById('big-mode-btn').textContent = on ? '⤢ 원래 크기로' : '⤢ 크게 보기';
+  // try real fullscreen too, as a bonus — silently ignored if the browser/iframe doesn't allow it
+  try{
+    if(on && document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen().catch(()=>{}); }
+    else if(!on && document.fullscreenElement && document.exitFullscreen){ document.exitFullscreen().catch(()=>{}); }
+  }catch(e){ /* ignore */ }
+  // the board's on-screen size just changed, so the whiteboard canvas needs re-sizing
+  setTimeout(()=>{ resizeWhiteboard(); clearWhiteboard(); }, 220);
+}
+
+function updateSceneCutDisplay(){
+  board.scene = String(board.scene);
+  const sceneEl = document.getElementById('disp-scene');
+  sceneEl.textContent = board.scene;
+  sceneEl.classList.toggle('len-m', board.scene.length>=5 && board.scene.length<8);
+  sceneEl.classList.toggle('len-l', board.scene.length>=8);
+  const p = currentProject();
+  const key = board.scene+'-'+board.cut;
+  board.take = (p.ngCounters[key]||0)+1;
+  const ngHint = document.getElementById('take-hint');
+  if(ngHint) ngHint.textContent = (p.ngCounters[key]||0)>0 ? `NG ${p.ngCounters[key]}회` : '자동 기록';
+  document.getElementById('disp-take').textContent = board.take;
+
+  // how many times this exact scene/cut has already been completed (OK) —
+  // shown right on the board so a reshoot is obvious at a glance, e.g. 1-(2)
+  const priorCount = p.records.filter(r=>String(r.scene)===board.scene && r.cut===board.cut && r.result==='OK').length;
+  document.getElementById('disp-cut').textContent = priorCount>0 ? `${board.cut}-(${priorCount+1})` : board.cut;
+  document.getElementById('dup-warning').style.display = priorCount>0 ? 'block' : 'none';
+}
+
+function setDayNight(v){ board.dayNight = board.dayNight===v?null:v; updateToggleUI(); }
+function setIntExt(v){ board.intExt = board.intExt===v?null:v; updateToggleUI(); }
+function updateToggleUI(){
+  document.getElementById('dot-day').classList.toggle('active', board.dayNight==='DAY');
+  document.getElementById('dot-night').classList.toggle('active', board.dayNight==='NIGHT');
+  document.getElementById('dot-int').classList.toggle('active', board.intExt==='INT');
+  document.getElementById('dot-ext').classList.toggle('active', board.intExt==='EXT');
+}
+
+/* ---- scene modal ---- */
+// 기본 씬(1~전체 씬 수) + 직접 추가한 씬(추가 촬영 등)을 함께 보여줌
+function isBaseScene(p, name){
+  const n = parseInt(name, 10);
+  const total = p.totalScenes>0 ? p.totalScenes : 0;
+  return String(n)===String(name) && n>=1 && (total>0 ? n<=total : true);
+}
+function getExtraScenes(p){
+  // 직접 추가한 씬 + 기록에 남아 있는 기본 범위 밖의 씬(삭제해도 기록은 유지되므로 목록에 계속 표시)
+  const out = [];
+  const add = n=>{ n=String(n); if(!out.includes(n)) out.push(n); };
+  (p.customScenes||[]).forEach(add);
+  p.records.forEach(r=>{ if(!isBaseScene(p, r.scene) || p.customScenes.includes(String(r.scene))) add(r.scene); });
+  if(!isBaseScene(p, board.scene)) add(board.scene);
+  return out.filter(n=>!(p.totalScenes>0 && isBaseScene(p,n)));
+}
+function openSceneModal(){
+  const p = currentProject();
+  const baseTotal = p.totalScenes>0 ? p.totalScenes : Math.max(30, (parseInt(board.scene,10)||0)+10);
+  const list = document.getElementById('scene-list');
+  let html='';
+  for(let i=1;i<=baseTotal;i++){
+    html+=`<div class="scene-list-item ${String(i)===board.scene?'active':''}" onclick="pickScene('${i}')">${i}</div>`;
+  }
+  getExtraScenes(p).forEach(n=>{
+    const safeAttr = escapeHtml(n).replace(/'/g,'&#39;');
+    html+=`<div class="scene-list-item custom ${n===board.scene?'active':''}" data-scene="${safeAttr}" onclick="pickScene(this.dataset.scene)">
+      ${escapeHtml(n)}<span class="tag-extra">추가</span>
+      <span class="del-scene" title="목록에서 제거" onclick="event.stopPropagation(); removeCustomScene(this.parentElement.dataset.scene)">✕</span>
+    </div>`;
+  });
+  list.innerHTML = html;
+  document.getElementById('scene-custom-input').value = '';
+  document.getElementById('modal-scene').classList.add('active');
+  // 현재 선택된 씬이 보이도록 스크롤
+  const act = list.querySelector('.active'); if(act) act.scrollIntoView({block:'center'});
+}
+function pickScene(n){ board.scene=String(n); updateSceneCutDisplay(); closeModal('modal-scene'); }
+function addCustomScene(){
+  const p = currentProject(); if(!p) return;
+  const input = document.getElementById('scene-custom-input');
+  const name = input.value.trim().replace(/\s+/g,' ');
+  if(!name){ showToast('추가할 씬 이름을 입력해 주세요'); return; }
+  // 이미 있는 기본 씬이면 그냥 선택
+  if(!(p.customScenes.includes(name)) && !isBaseScene(p, name)){
+    p.customScenes.push(name);
+    saveState();
+    showToast(`씬 ${name} 추가됨`);
+  }
+  pickScene(name);
+}
+function removeCustomScene(name){
+  const p = currentProject(); if(!p) return;
+  const used = p.records.some(r=>String(r.scene)===String(name));
+  p.customScenes = p.customScenes.filter(n=>n!==name);
+  saveState();
+  if(board.scene===name){ board.scene='1'; updateSceneCutDisplay(); }
+  openSceneModal();
+  showToast(used ? '목록에서 제거했어요 (기존 촬영 기록은 그대로 유지돼요)' : '추가한 씬을 제거했어요');
+}
+
+/* ---- cut modal (numpad) ---- */
+let numpadValue = '';
+function openCutModal(){
+  numpadValue='';
+  document.getElementById('numpad-display').textContent='0';
+  const grid = document.getElementById('numpad-grid');
+  const keys = ['1','2','3','4','5','6','7','8','9','⌫','0','C'];
+  grid.innerHTML = keys.map(k=>`<button onclick="numpadPress('${k}')">${k}</button>`).join('');
+  document.getElementById('modal-cut').classList.add('active');
+}
+function numpadPress(k){
+  if(k==='⌫') numpadValue = numpadValue.slice(0,-1);
+  else if(k==='C') numpadValue='';
+  else if(numpadValue.length<3) numpadValue += k;
+  document.getElementById('numpad-display').textContent = numpadValue || '0';
+}
+function confirmCut(){
+  const n = parseInt(numpadValue||'0');
+  board.cut = n>0?n:1;
+  updateSceneCutDisplay();
+  closeModal('modal-cut');
+}
+function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+
+/* ---- CLAP / timer ---- */
+// Standard film timecode format HH:MM:SS:FF (FF = frame count within the
+// current second). FPS is fixed at 30 (non-drop), the common default for
+// on-set slate timers; ms is wall-clock elapsed time from Date.now().
+const TC_FPS = 30;
+function fmtTime(ms){
+  const totalMs = Math.max(0, ms);
+  const totalSec = Math.floor(totalMs/1000);
+  const h=String(Math.floor(totalSec/3600)).padStart(2,'0');
+  const m=String(Math.floor((totalSec%3600)/60)).padStart(2,'0');
+  const s=String(totalSec%60).padStart(2,'0');
+  const f=String(Math.floor((totalMs%1000)/1000*TC_FPS)).padStart(2,'0');
+  return `${h}:${m}:${s}:${f}`;
+}
+
+/* The clap tone now plays through the Web Audio API instead of an <audio>
+   element. HTMLMediaElement.play() has to spin up its own playback
+   pipeline on every single call — even fully "unlocked" and preloaded, it
+   still has a real, noticeable startup latency (worse on mobile Safari),
+   which is what made CLAP! feel delayed. AudioBufferSourceNode has none of
+   that: the WAV is decoded into an in-memory AudioBuffer exactly once, up
+   front, and every press afterwards just wires up a new (cheap, disposable)
+   source node and calls .start(0) — effectively sample-accurate, no
+   decode/seek/buffer step in the hot path. The <audio> element is kept
+   only as a same-tick fallback for the rare case where Web Audio is
+   unavailable or the buffer hasn't finished decoding yet. */
+let clapCtx = null;
+let clapBuffer = null;
+
+function getClapAudio(){ return document.getElementById('clap-audio'); }
+
+function initClapAudio(){
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return; // no Web Audio support — playClapSound() falls back to <audio>
+    clapCtx = new AC();
+    const a = getClapAudio();
+    if(!a) return;
+    const dataUrl = a.currentSrc || a.getAttribute('src') || '';
+    const base64 = dataUrl.split(',')[1];
+    if(!base64) return;
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    // decodeAudioData works fine while the context is still 'suspended' —
+    // only actually starting playback needs the later resume() on gesture.
+    const decodePromise = clapCtx.decodeAudioData(bytes.buffer);
+    if(decodePromise && typeof decodePromise.then === 'function'){
+      decodePromise.then(buf=>{ clapBuffer = buf; }).catch(()=>{ clapBuffer = null; });
+    }else{
+      // legacy Safari callback form
+      clapCtx.decodeAudioData(bytes.buffer, buf=>{ clapBuffer = buf; }, ()=>{ clapBuffer = null; });
+    }
+  }catch(e){ clapCtx = null; }
+}
+
+function warmAudio(){
+  // "unlock" playback on the very first gesture anywhere on the page.
+  if(clapCtx && clapCtx.state === 'suspended'){
+    try{ clapCtx.resume().catch(()=>{}); }catch(e){ /* ignore */ }
+  }
+  // also warm the <audio> fallback so it's unlocked too, in case Web Audio
+  // isn't available on this browser
+  const a = getClapAudio();
+  if(!a) return;
+  try{
+    const p = a.play();
+    a.pause(); a.currentTime = 0;
+    if(p && typeof p.catch==='function') p.catch(()=>{});
+  }catch(e){ /* ignore */ }
+}
+
+function playClapSound(){
+  if(clapCtx && clapBuffer){
+    try{
+      if(clapCtx.state === 'suspended'){ clapCtx.resume().catch(()=>{}); }
+      const src = clapCtx.createBufferSource();
+      src.buffer = clapBuffer;
+      src.connect(clapCtx.destination);
+      src.start(0);
+      return;
+    }catch(e){ /* fall through to <audio> fallback */ }
+  }
+  const a = getClapAudio();
+  if(!a) return;
+  try{
+    a.currentTime = 0;
+    const p = a.play();
+    if(p && typeof p.catch==='function') p.catch(()=>{});
+  }catch(e){ /* audio unsupported, ignore */ }
+}
+
+/* screen flash — 0.1s pure white, fired in the same tick as CLAP! so an
+   external camera/mic recording the screen gets a hard visual marker that
+   lines up with the clap sound in the audio waveform for easy sync in
+   Premiere / Kdenlive / CapCut etc. */
+function flashScreen(){
+  const el = document.getElementById('flash-overlay');
+  if(!el) return;
+  el.classList.remove('flash-off');
+  // force reflow so the removed class actually resets before re-adding 'flash-on'
+  void el.offsetWidth;
+  el.classList.add('flash-on');
+  setTimeout(()=>{
+    el.classList.remove('flash-on');
+    el.classList.add('flash-off');
+  }, 100);
+}
+
+function pressClap(){
+  // Sound goes out as the literal first line of this handler, with nothing
+  // ahead of it. It used to be preceded by a warmAudio() call, whose
+  // play()+pause()+currentTime=0 combo raced with (and could clip/silence)
+  // this same <audio> element's playback, which is what made CLAP! sound
+  // delayed or silent on press. Audio is already unlocked well before this
+  // by the page-load gesture listeners (pointerdown fires before click), so
+  // no warm-up call is needed here at all.
+  playClapSound();                     // fires on the press itself, no delay
+  flashScreen();                       // 0.1s white flash for camera/audio sync
+  const boardEl = document.getElementById('board');
+  boardEl.classList.add('armed','clapping');
+  setTimeout(()=>{ boardEl.classList.remove('clapping'); }, 340);
+
+  document.getElementById('btn-clap').disabled = true;
+  document.getElementById('btn-ng').disabled = false;
+  document.getElementById('btn-ok').disabled = false;
+
+  board.running = true;
+  board.startTime = Date.now();
+  const tcEl = document.getElementById('timecode');
+  tcEl.classList.remove('idle');
+  document.getElementById('timecode-status').textContent = '촬영 중';
+  document.getElementById('timecode-status').classList.add('rec');
+
+  // Updates roughly once per frame at TC_FPS so the FF field actually
+  // counts up smoothly instead of jumping in visible steps.
+  board.timerHandle = setInterval(()=>{
+    tcEl.textContent = fmtTime(Date.now()-board.startTime);
+  }, 1000/TC_FPS);
+}
+
+function stopTimer(){
+  clearInterval(board.timerHandle);
+  const dur = Date.now()-board.startTime;
+  board.running = false;
+  document.getElementById('board').classList.remove('armed');
+  document.getElementById('btn-clap').disabled = false;
+  document.getElementById('btn-ng').disabled = true;
+  document.getElementById('btn-ok').disabled = true;
+  document.getElementById('timecode').classList.add('idle');
+  document.getElementById('timecode').textContent = '00:00:00:00';
+  document.getElementById('timecode-status').textContent = 'CLAP! 을 눌러 시작';
+  document.getElementById('timecode-status').classList.remove('rec');
+  return dur;
+}
+
+function pressNG(){
+  if(!board.running) return;
+  stopTimer();
+  const p = currentProject();
+  const key = board.scene+'-'+board.cut;
+  p.ngCounters[key] = (p.ngCounters[key]||0)+1;
+  saveState();
+  updateSceneCutDisplay();
+  showToast(`NG · S${board.scene}-C${board.cut} 다음 테이크 ${board.take}`);
+}
+
+function pressOK(){
+  if(!board.running) return;
+  stopTimer();
+  const p = currentProject();
+  const key = board.scene+'-'+board.cut;
+  const ngBefore = p.ngCounters[key]||0;
+  const priorCount = p.records.filter(r=>String(r.scene)===board.scene && r.cut===board.cut && r.result==='OK').length;
+  const rec = mkRecord(ngBefore, priorCount);
+  p.records.push(rec);
+  p.completed[key] = { time: rec.timeLabel, take: rec.take };
+  p.ngCounters[key] = 0; // this scene/cut is done; a future reshoot starts fresh
+  saveState();
+  clearWhiteboard();
+  updateSceneCutDisplay();
+  renderHistList();
+  showToast(`완료 · S${board.scene}-C${rec.cutLabel} : 완료(${rec.timeLabel})`);
+}
+
+function mkRecord(ngCount, priorCount){
+  const now = new Date();
+  const dur = Date.now()-board.startTime;
+  const cutLabel = priorCount>0 ? `${board.cut}-(${priorCount+1})` : `${board.cut}`;
+  return {
+    id: uid(), scene: board.scene, cut: board.cut, cutLabel, take: board.take,
+    result:'OK', ngCount: ngCount||0, dayNight: board.dayNight, intExt: board.intExt,
+    duration: fmtTime(dur), ts: now.getTime(),
+    dateISO: localISO(now),
+    timeLabel: now.toTimeString().slice(0,8)
+  };
+}
+
+function renderHistList(){
+  const p = currentProject(); if(!p) return;
+  const list = [...p.records].sort((a,b)=>b.ts-a.ts).slice(0,12);
+  document.getElementById('hist-list').innerHTML = list.map(r=>
+    `<div class="hist-item"><span>S${escapeHtml(r.scene)}-C${r.cutLabel||r.cut}-T${r.take}</span><span class="${r.ngCount>0?'r-ng':'r-ok'}">${r.ngCount>0?('NG '+r.ngCount+'회'):'OK'}</span></div>`
+  ).join('') || `<div style="color:var(--chalk-dim);font-size:12.5px;">기록 없음</div>`;
+}
+
+/* ---- whiteboard drawing ----
+   Pointer Events (setPointerCapture etc.) turned out not to fire reliably
+   on iPadOS Safari inside this published artifact's iframe. Touch events
+   and mouse events are the older, much better-supported APIs, so drawing
+   is now built on those directly instead — touch for finger/Pencil input,
+   mouse for trackpad/desktop, with a flag so a touch interaction never
+   also triggers the synthetic mouse events Safari fires after it. */
+let wbCtx, wbDrawing=false, wbUsedTouch=false;
+function resizeWhiteboard(){
+  const canvas = document.getElementById('whiteboard');
+  const rect = canvas.getBoundingClientRect();
+  if(rect.width===0 || rect.height===0) return;   // not visible yet — nothing to size
+  const dpr = window.devicePixelRatio||1;
+  canvas.width = Math.round(rect.width*dpr); canvas.height = Math.round(rect.height*dpr);
+  wbCtx = canvas.getContext('2d');
+  wbCtx.scale(dpr,dpr);
+  wbCtx.strokeStyle = '#f2efe6';   // chalk colour, against the dark board background
+  wbCtx.lineWidth = 2.6;
+  wbCtx.lineCap='round'; wbCtx.lineJoin='round';
+}
+function wbPos(clientX, clientY, canvas){
+  const rect = canvas.getBoundingClientRect();
+  return { x: clientX-rect.left, y: clientY-rect.top };
+}
+function wbStart(x,y){ if(!wbCtx) return; wbDrawing=true; wbCtx.beginPath(); wbCtx.moveTo(x,y); }
+function wbMove(x,y){ if(!wbDrawing || !wbCtx) return; wbCtx.lineTo(x,y); wbCtx.stroke(); }
+function wbEnd(){ wbDrawing=false; }
+
+function initWhiteboard(){
+  const canvas = document.getElementById('whiteboard');
+  if(!canvas || canvas.dataset.wbInit) return;  // never bind twice
+  canvas.dataset.wbInit = '1';
+
+  canvas.addEventListener('touchstart', e=>{
+    wbUsedTouch = true;
+    const t = e.touches[0]; if(!t) return;
+    const p = wbPos(t.clientX, t.clientY, canvas);
+    wbStart(p.x, p.y);
+    e.preventDefault();
+  }, {passive:false});
+
+  canvas.addEventListener('touchmove', e=>{
+    const t = e.touches[0]; if(!t) return;
+    const p = wbPos(t.clientX, t.clientY, canvas);
+    wbMove(p.x, p.y);
+    e.preventDefault();
+  }, {passive:false});
+
+  canvas.addEventListener('touchend', e=>{ wbEnd(); e.preventDefault(); }, {passive:false});
+  canvas.addEventListener('touchcancel', e=>{ wbEnd(); }, {passive:false});
+
+  // mouse path — ignored on devices that just drew via touch, so Safari's
+  // synthetic mousedown/mouseup after a touch never draws a second stroke
+  canvas.addEventListener('mousedown', e=>{
+    if(wbUsedTouch) return;
+    const p = wbPos(e.clientX, e.clientY, canvas);
+    wbStart(p.x, p.y);
+  });
+  window.addEventListener('mousemove', e=>{
+    if(wbUsedTouch || !wbDrawing) return;
+    const p = wbPos(e.clientX, e.clientY, canvas);
+    wbMove(p.x, p.y);
+  });
+  window.addEventListener('mouseup', ()=>{ if(!wbUsedTouch) wbEnd(); });
+}
+function clearWhiteboard(){
+  const canvas = document.getElementById('whiteboard');
+  if(!wbCtx) return;
+  const dpr = window.devicePixelRatio||1;
+  wbCtx.fillStyle = '#141410';
+  wbCtx.fillRect(0,0,canvas.width/dpr,canvas.height/dpr);
+}
+
+/* ============================================================
+   CALENDAR / SHOOTING SCHEDULE
+   (No external calendar API is reachable from this offline, self-contained
+   app, so schedules are kept as simple per-project, per-date entries stored
+   alongside the rest of the project data.)
+============================================================ */
+let calState = (()=>{ const d=new Date(); return {year:d.getFullYear(), month:d.getMonth()}; })();
+let calSelectedDate = null;
+
+function changeCalMonth(delta){
+  calState.month += delta;
+  if(calState.month<0){ calState.month=11; calState.year--; }
+  if(calState.month>11){ calState.month=0; calState.year++; }
+  renderCalendar();
+}
+
+function renderCalendar(){
+  const p = currentProject(); if(!p) return;
+  if(!p.schedule) p.schedule = {};
+  const {year, month} = calState;
+  document.getElementById('cal-title').textContent = `${year}년 ${month+1}월`;
+
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const todayIso = todayISO();
+
+  let html = '';
+  for(let i=0;i<firstDow;i++) html += `<div class="cal-cell empty"></div>`;
+  for(let day=1; day<=daysInMonth; day++){
+    const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const events = p.schedule[iso] || [];
+    const isToday = iso===todayIso;
+    const shown = events.slice(0,2).map(ev=>`<div class="cal-event-pill">${escapeHtml(ev.time?ev.time+' ':'')}${escapeHtml(ev.title)}</div>`).join('');
+    const more = events.length>2 ? `<div class="cal-more">+${events.length-2}개 더</div>` : '';
+    html += `<div class="cal-cell${isToday?' today':''}" onclick="openDateModal('${iso}')">
+      <div class="cal-daynum">${day}</div>
+      <div class="cal-events">${shown}${more}</div>
+    </div>`;
+  }
+  document.getElementById('calendar-grid').innerHTML = html;
+}
+
+function openDateModal(iso){
+  calSelectedDate = iso;
+  const p = currentProject(); if(!p) return;
+  const d = new Date(iso+'T00:00:00');
+  document.getElementById('schedule-modal-title').textContent = fullDateKR(iso);
+  document.getElementById('sch-title').value='';
+  document.getElementById('sch-time').value='';
+  document.getElementById('sch-place').value='';
+  document.getElementById('sch-note').value='';
+  renderScheduleExisting();
+  document.getElementById('modal-schedule').classList.add('active');
+}
+
+function renderScheduleExisting(){
+  const p = currentProject(); if(!p) return;
+  const events = (p.schedule[calSelectedDate]||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const wrap = document.getElementById('schedule-existing');
+  if(events.length===0){ wrap.innerHTML = `<div style="color:var(--chalk-dim); font-size:12.5px;">등록된 일정이 없어요</div>`; return; }
+  wrap.innerHTML = events.map(ev=>`
+    <div class="sch-item">
+      <div>
+        <div><strong>${ev.time?escapeHtml(ev.time)+' · ':''}${escapeHtml(ev.title)}</strong></div>
+        ${ev.place?`<div style="color:var(--chalk-dim); margin-top:2px;">${escapeHtml(ev.place)}</div>`:''}
+        ${ev.note?`<div style="color:var(--chalk-dim); margin-top:2px;">${escapeHtml(ev.note)}</div>`:''}
+      </div>
+      <button class="sch-del" onclick="deleteScheduleItem('${ev.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function addScheduleItem(){
+  const p = currentProject(); if(!p) return;
+  const title = document.getElementById('sch-title').value.trim();
+  if(!title){ showToast('일정 제목을 입력해 주세요'); return; }
+  if(!p.schedule[calSelectedDate]) p.schedule[calSelectedDate] = [];
+  p.schedule[calSelectedDate].push({
+    id: uid(),
+    title,
+    time: document.getElementById('sch-time').value.trim(),
+    place: document.getElementById('sch-place').value.trim(),
+    note: document.getElementById('sch-note').value.trim()
+  });
+  saveState();
+  document.getElementById('sch-title').value='';
+  document.getElementById('sch-time').value='';
+  document.getElementById('sch-place').value='';
+  document.getElementById('sch-note').value='';
+  renderScheduleExisting();
+  renderCalendar();
+  showToast('일정을 추가했어요');
+}
+
+function deleteScheduleItem(id){
+  const p = currentProject(); if(!p) return;
+  const list = p.schedule[calSelectedDate]||[];
+  p.schedule[calSelectedDate] = list.filter(ev=>ev.id!==id);
+  saveState();
+  renderScheduleExisting();
+  renderCalendar();
+}
+
+/* ============================================================
+   GLOBAL CALENDAR (aggregates every project's schedule)
+============================================================ */
+let gcalState = (()=>{ const d=new Date(); return {year:d.getFullYear(), month:d.getMonth()}; })();
+let gcalSelectedDate = null;
+
+// stable, deterministic color per project so the same project always
+// gets the same dot color across sessions (hashed from its id)
+const GCAL_PALETTE = ['#e8a23c','#5c9a6f','#c9544c','#6a8fd8','#c77dc7','#4fb8b0','#d0a640','#8a7fd8'];
+function colorForProject(id){
+  let h = 0;
+  for(let i=0;i<id.length;i++) h = (h*31 + id.charCodeAt(i)) >>> 0;
+  return GCAL_PALETTE[h % GCAL_PALETTE.length];
+}
+
+function changeGlobalCalMonth(delta){
+  gcalState.month += delta;
+  if(gcalState.month<0){ gcalState.month=11; gcalState.year--; }
+  if(gcalState.month>11){ gcalState.month=0; gcalState.year++; }
+  renderGlobalCalendar();
+}
+
+function renderGlobalCalendar(){
+  const {year, month} = gcalState;
+  document.getElementById('gcal-title').textContent = `${year}년 ${month+1}월`;
+
+  const legend = document.getElementById('gcal-legend');
+  legend.innerHTML = state.projects.map(p=>`
+    <div class="gcal-legend-item"><span class="gcal-dot" style="background:${colorForProject(p.id)}"></span>${escapeHtml(p.title)}</div>
+  `).join('');
+
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const todayIso = todayISO();
+
+  // flatten every project's schedule into one date-keyed map
+  const byDate = {};
+  state.projects.forEach(p=>{
+    if(!p.schedule) return;
+    Object.keys(p.schedule).forEach(iso=>{
+      (p.schedule[iso]||[]).forEach(ev=>{
+        (byDate[iso] = byDate[iso]||[]).push({...ev, projectId:p.id, projectTitle:p.title});
+      });
+    });
+  });
+
+  let html = '';
+  for(let i=0;i<firstDow;i++) html += `<div class="cal-cell empty"></div>`;
+  for(let day=1; day<=daysInMonth; day++){
+    const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const events = (byDate[iso]||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    const isToday = iso===todayIso;
+    const shown = events.slice(0,2).map(ev=>`<div class="cal-event-pill"><span class="gcal-dot" style="background:${colorForProject(ev.projectId)}"></span>${escapeHtml(ev.time?ev.time+' ':'')}${escapeHtml(ev.projectTitle)} · ${escapeHtml(ev.title)}</div>`).join('');
+    const more = events.length>2 ? `<div class="cal-more">+${events.length-2}개 더</div>` : '';
+    html += `<div class="cal-cell${isToday?' today':''}" onclick="openGlobalDateModal('${iso}')">
+      <div class="cal-daynum">${day}</div>
+      <div class="cal-events">${shown}${more}</div>
+    </div>`;
+  }
+  document.getElementById('global-calendar-grid').innerHTML = html;
+}
+
+function openGlobalDateModal(iso){
+  gcalSelectedDate = iso;
+  document.getElementById('gcal-modal-title').textContent = fullDateKR(iso);
+  const events = [];
+  state.projects.forEach(p=>{
+    (((p.schedule||{})[iso])||[]).forEach(ev=>events.push({...ev, projectId:p.id, projectTitle:p.title}));
+  });
+  events.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  const wrap = document.getElementById('gcal-day-list');
+  if(events.length===0){
+    wrap.innerHTML = `<div style="color:var(--chalk-dim); font-size:12.5px; text-align:center; padding:16px 0;">이 날짜에 등록된 일정이 없어요</div>`;
+  }else{
+    wrap.innerHTML = events.map(ev=>`
+      <div class="sch-item" onclick="jumpToProjectCalendar('${ev.projectId}')">
+        <div>
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
+            <span class="gcal-dot" style="background:${colorForProject(ev.projectId)}"></span>
+            <span style="color:var(--chalk-dim); font-size:11px;">${escapeHtml(ev.projectTitle)}</span>
+          </div>
+          <div><strong>${ev.time?escapeHtml(ev.time)+' · ':''}${escapeHtml(ev.title)}</strong></div>
+          ${ev.place?`<div style="color:var(--chalk-dim); margin-top:2px;">${escapeHtml(ev.place)}</div>`:''}
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('modal-gcal-day').classList.add('active');
+}
+
+function jumpToProjectCalendar(projectId){
+  closeModal('modal-gcal-day');
+  const p = getProject(projectId);
+  if(!p) return;
+  const d = new Date(gcalSelectedDate+'T00:00:00');
+  calState = {year:d.getFullYear(), month:d.getMonth()};
+  openProject(projectId);
+  switchProjView('calendar');
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ============================================================
+   SHARED SYNC — Firebase(구글 로그인 + Firestore)로 프로젝트를 실시간 공유
+   projects/{id}            : 프로젝트 정보 + members(참여자 구글 이메일 목록) + ownerEmail
+   projects/{id}/records/{} : 촬영 기록 1건 = 문서 1개
+   로컬(localStorage)은 그대로 캐시로 쓰고, 로그인하면 변경분만 올리고 받아와요.
+============================================================ */
+/* ▼▼▼ 본인 Firebase 프로젝트 값으로 교체하세요 (Firebase 콘솔 → 프로젝트 설정 → 내 앱 → 웹 앱) ▼▼▼ */
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  appId: "YOUR_APP_ID"
+};
+/* ▲▲▲ */
+
+const Sync = { db:null, auth:null, email:null, canWrite:false, timer:null, pending:false, busy:false,
+  projSig:{}, recSig:{}, projSeen:new Set(), recSeen:new Set(), recUnsubs:{}, projUnsub:null, status:'local',
+  fileSig:{}, fileMeta:{}, fileSeen:new Set(), fileUnsubs:{}, bigWarned:{} };
+const clean = o=>JSON.parse(JSON.stringify(o));
+function stable(v){
+  if(Array.isArray(v)) return '['+v.map(stable).join(',')+']';
+  if(v && typeof v==='object') return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';
+  return JSON.stringify(v);
+}
+// PDF 원본(용량 큼)과 기록(별도 문서)은 프로젝트 문서에서 뺌
+function metaOf(p){ const m = clean(p); delete m.records; delete m.scenarioPdf; delete m.storyboardPdf; delete m._pdfWarn; return m; }
+
+function setSyncStatus(kind){
+  Sync.status = kind;
+  const el = document.getElementById('sync-chip'); if(!el) return;
+  const T = { live:'● 공유 중 · '+(Sync.email||''), out:'🔒 Google 로그인하고 공유하기', err:'⚠ 동기화 오류 · 눌러서 확인', nocfg:'Firebase 미설정 · 이 기기에만 저장' };
+  el.className = kind==='live' ? 'live' : (kind==='err' ? 'warn' : '');
+  el.textContent = T[kind]||''; el.style.display = T[kind] ? 'block' : 'none';
+}
+/* ---- PDF 공유: 큰 파일은 70만 자 조각으로 나눠 projects/{id}/files 에 저장 ---- */
+const PDF_KINDS = ['scenario','storyboard'], PDF_CHUNK = 700000, PDF_MAX = 9000000;   // 최대 약 6MB
+function pdfSig(f){
+  if(!f || !f.dataUrl) return '';
+  const t = f.dataUrl, n = t.length, step = Math.max(1, Math.floor(n/512)); let h = 0;
+  for(let i=0;i<n;i+=step) h = (h*31 + t.charCodeAt(i))|0;
+  return f.name+'|'+n+'|'+h;
+}
+async function deleteRemoteFile(pid, kind){
+  const key = pid+'/'+kind, m = Sync.fileMeta[key]; if(!m) return;
+  for(let i=0;i<m.parts;i++) await Sync.db.doc(`projects/${pid}/files/${kind}__${m.ver}__${i}`).delete();
+  await Sync.db.doc(`projects/${pid}/files/${kind}`).delete();
+  delete Sync.fileMeta[key]; delete Sync.fileSig[key]; Sync.fileSeen.delete(key);
+}
+async function pushFiles(p){
+  for(const kind of PDF_KINDS){
+    const key = p.id+'/'+kind, f = p[kind+'Pdf'], sig = pdfSig(f);
+    if(sig){
+      if(Sync.fileSig[key]===sig) continue;
+      if(f.dataUrl.length>PDF_MAX){
+        if(!Sync.bigWarned[key]){ Sync.bigWarned[key] = 1; showToast('PDF가 커서(약 6MB 초과) 공유되지 않아요. 이 기기에만 보여요'); }
+        continue;
+      }
+      const old = Sync.fileMeta[key], ver = Date.now().toString(36), parts = Math.ceil(f.dataUrl.length/PDF_CHUNK);
+      Sync.fileSig[key] = sig;                                   // 내 쓰기가 되돌아와도 무시하도록 먼저 기록
+      try{
+        for(let i=0;i<parts;i++) await Sync.db.doc(`projects/${p.id}/files/${kind}__${ver}__${i}`).set({ data: f.dataUrl.slice(i*PDF_CHUNK,(i+1)*PDF_CHUNK) });
+        await Sync.db.doc(`projects/${p.id}/files/${kind}`).set({ name:f.name, ver, parts, sig });   // 조각을 다 올린 뒤 마지막에 기록
+      }catch(e){ delete Sync.fileSig[key]; throw e; }
+      Sync.fileMeta[key] = { ver, parts };
+      if(old) for(let i=0;i<old.parts;i++){ try{ await Sync.db.doc(`projects/${p.id}/files/${kind}__${old.ver}__${i}`).delete(); }catch(e){} }
+    }else if(!f && Sync.fileMeta[key]){ await deleteRemoteFile(p.id, kind); }   // 내가 PDF를 제거함
+  }
+}
+function subscribeFiles(pid){
+  if(Sync.fileUnsubs[pid]) return;
+  Sync.fileUnsubs[pid] = Sync.db.collection('projects/'+pid+'/files').onSnapshot(snap=>{
+    const p = getProject(pid); if(!p) return;
+    const docs = {}; snap.docs.forEach(d=>{ docs[d.id] = d.data(); });
+    let changed = false;
+    PDF_KINDS.forEach(kind=>{
+      const key = pid+'/'+kind, m = docs[kind];
+      if(!m){
+        if(Sync.fileSeen.has(key)){ p[kind+'Pdf'] = null; Sync.fileSeen.delete(key); delete Sync.fileMeta[key]; delete Sync.fileSig[key]; changed = true; }   // 다른 사람이 제거
+        return;
+      }
+      Sync.fileSeen.add(key);
+      if(Sync.fileSig[key]===m.sig) return;
+      const parts = [];
+      for(let i=0;i<m.parts;i++){ const c = docs[`${kind}__${m.ver}__${i}`]; if(!c) return; parts.push(c.data); }   // 조각이 아직 다 안 왔으면 대기
+      p[kind+'Pdf'] = { name:m.name, dataUrl:parts.join('') };
+      Sync.fileSig[key] = m.sig; Sync.fileMeta[key] = { ver:m.ver, parts:m.parts }; changed = true;
+    });
+    if(changed){
+      saveLocal();
+      const v = document.querySelector('.proj-view.active'), cp = currentProject();
+      if(v && v.id==='view-script' && cp && cp.id===pid) switchScriptDoc(currentScriptDoc);
+    }
+  }, e=>console.warn('files sync', e));
+}
+function subscribeProject(pid){ subscribeRecords(pid); subscribeFiles(pid); }
+
+function saveState(){ saveLocal(); queueSync(); }
+function queueSync(){
+  if(!Sync.db || !Sync.canWrite) return;
+  Sync.pending = true; clearTimeout(Sync.timer); Sync.timer = setTimeout(pushAll, 500);
+}
+async function pushAll(){
+  if(Sync.busy){ Sync.timer = setTimeout(pushAll, 500); return; }
+  Sync.busy = true; Sync.pending = false;
+  let failed = null;
+  const db = Sync.db;
+  try{
+    // 로컬에서 삭제된 프로젝트 → 서버에서도 삭제 (기록 → 프로젝트 순)
+    for(const pid of Object.keys(Sync.projSig)){
+      if(getProject(pid)) continue;
+      try{
+        for(const k of Object.keys(Sync.recSig)){
+          if(k.startsWith(pid+'/')){ await db.doc('projects/'+pid+'/records/'+k.slice(pid.length+1)).delete(); delete Sync.recSig[k]; }
+        }
+        for(const kind of PDF_KINDS) await deleteRemoteFile(pid, kind);
+        await db.doc('projects/'+pid).delete();
+        delete Sync.projSig[pid];
+      }catch(e){ failed = e; }
+    }
+    for(const p of state.projects){
+      if(!p.members || !p.members.includes(Sync.email)) continue;
+      try{
+        const meta = metaOf(p), sig = stable(meta);
+        if(Sync.projSig[p.id]!==sig){ await db.doc('projects/'+p.id).set(meta); Sync.projSig[p.id] = sig; }
+        const have = new Set();
+        for(const r of p.records){
+          have.add(r.id);
+          const rc = clean(r), rs = stable(rc), k = p.id+'/'+r.id;
+          if(Sync.recSig[k]!==rs){ await db.doc('projects/'+p.id+'/records/'+r.id).set(rc); Sync.recSig[k] = rs; }
+        }
+        for(const k of Object.keys(Sync.recSig)){
+          if(k.startsWith(p.id+'/') && !have.has(k.slice(p.id.length+1))){
+            await db.doc('projects/'+p.id+'/records/'+k.slice(p.id.length+1)).delete(); delete Sync.recSig[k];
+          }
+        }
+        await pushFiles(p);
+        subscribeProject(p.id);
+      }catch(e){ failed = e; }
+    }
+  }catch(e){ failed = e; }
+  if(failed){ console.warn('sync push failed', failed); setSyncStatus('err'); Sync.lastError = failed; }
+  else if(Sync.email) setSyncStatus('live');
+  Sync.busy = false;
+  if(Sync.pending) queueSync();
+}
+
+function subscribeRecords(pid){
+  if(Sync.recUnsubs[pid]) return;
+  Sync.recUnsubs[pid] = Sync.db.collection('projects/'+pid+'/records').onSnapshot(snap=>{
+    const p = getProject(pid); if(!p) return;
+    let changed = false; const ids = new Set();
+    snap.docs.forEach(d=>{
+      const r = d.data(), k = pid+'/'+d.id, sig = stable(r);
+      ids.add(d.id); Sync.recSeen.add(k);
+      if(Sync.recSig[k]===sig) return;                      // 내가 올린 것의 되돌림
+      const i = p.records.findIndex(x=>x.id===d.id);
+      if(Sync.pending && i>=0) return;                      // 내 미전송 수정이 우선
+      r.scene = String(r.scene);
+      if(i>=0) p.records[i] = r; else p.records.push(r);
+      Sync.recSig[k] = sig; changed = true;
+    });
+    [...Sync.recSeen].filter(k=>k.startsWith(pid+'/')).forEach(k=>{
+      const id = k.slice(pid.length+1);
+      if(ids.has(id)) return;
+      const i = p.records.findIndex(x=>x.id===id);          // 다른 사람이 지운 기록
+      if(i>=0){ p.records.splice(i,1); changed = true; }
+      Sync.recSeen.delete(k); delete Sync.recSig[k];
+    });
+    if(changed) afterRemote();
+  }, e=>console.warn('records sync', e));
+}
+
+function removeLocalProject(pid){
+  state.projects = state.projects.filter(x=>x.id!==pid);
+  delete Sync.projSig[pid];
+  if(Sync.recUnsubs[pid]){ try{ Sync.recUnsubs[pid](); }catch(e){} delete Sync.recUnsubs[pid]; }
+  if(Sync.fileUnsubs[pid]){ try{ Sync.fileUnsubs[pid](); }catch(e){} delete Sync.fileUnsubs[pid]; }
+  if(state.currentProjectId===pid){ state.currentProjectId = null; goTo('home'); showToast('이 프로젝트가 삭제되었거나 공유에서 제외되었어요'); }
+}
+
+function startSync(){
+  Sync.projUnsub = Sync.db.collection('projects').where('members','array-contains',Sync.email).onSnapshot(snap=>{
+    let changed = false; const ids = new Set();
+    snap.docs.forEach(d=>{
+      const meta = d.data(), sig = stable(meta);
+      ids.add(d.id); Sync.projSeen.add(d.id);
+      let p = getProject(d.id);
+      if(Sync.projSig[d.id]===sig){ subscribeProject(d.id); return; }   // 내가 올린 것의 되돌림
+      if(Sync.pending && p) return;                                      // 내 미전송 수정이 우선
+      if(!p){ p = { records:[] }; state.projects.push(p); }
+      const recs = p.records; Object.assign(p, meta); p.records = recs; normalizeProject(p);
+      Sync.projSig[d.id] = sig; changed = true;
+      subscribeProject(d.id);
+    });
+    [...Sync.projSeen].forEach(pid=>{
+      if(ids.has(pid)) return;
+      Sync.projSeen.delete(pid);
+      if(getProject(pid) && !Sync.pending){ removeLocalProject(pid); changed = true; }   // 삭제됨/공유 제외
+    });
+    if(changed) afterRemote();
+  }, e=>{ console.warn('project sync', e); Sync.lastError = e; setSyncStatus('err'); });
+}
+function stopSync(){
+  clearTimeout(Sync.timer); Sync.pending = false;
+  if(Sync.projUnsub){ try{ Sync.projUnsub(); }catch(e){} Sync.projUnsub = null; }
+  Object.values(Sync.recUnsubs).forEach(u=>{ try{ u(); }catch(e){} });
+  Object.values(Sync.fileUnsubs).forEach(u=>{ try{ u(); }catch(e){} });
+  Sync.fileUnsubs = {}; Sync.fileSig = {}; Sync.fileMeta = {}; Sync.fileSeen = new Set();
+  Sync.recUnsubs = {}; Sync.projSig = {}; Sync.recSig = {}; Sync.projSeen = new Set(); Sync.recSeen = new Set();
+}
+
+// 받아온 변경을 현재 화면에 반영 (입력 중이거나 촬영 중인 화면은 건드리지 않음)
+function afterRemote(){
+  saveLocal();
+  if(document.getElementById('screen-home').classList.contains('active')) renderHome();
+  const p = currentProject(); if(!p) return;
+  document.getElementById('proj-title-label').textContent = p.title;
+  const v = document.querySelector('.proj-view.active'); if(!v) return;
+  const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if(v.id==='view-storage') renderStorage();
+  else if(v.id==='view-script' && !typing) renderInfoPanel();
+  else if(v.id==='view-clapper'){ if(!board.running) updateSceneCutDisplay(); renderHistList(); }
+  else if(v.id==='view-calendar' && !typing) renderCalendar();
+  if(document.getElementById('modal-members').classList.contains('active')) openMembersModal();
+}
+
+/* ---- 로그인 / 계정 ---- */
+function initSync(){
+  try{
+    if(typeof firebase==='undefined' || String(FIREBASE_CONFIG.apiKey).startsWith('YOUR_')) return setSyncStatus('nocfg');
+    firebase.initializeApp(FIREBASE_CONFIG);
+    Sync.auth = firebase.auth(); Sync.db = firebase.firestore();
+    Sync.auth.getRedirectResult().catch(()=>{});
+    Sync.auth.onAuthStateChanged(user=>{
+      stopSync();
+      if(!user || !user.email){ Sync.email = null; Sync.canWrite = false; return setSyncStatus('out'); }
+      Sync.email = user.email.toLowerCase(); Sync.canWrite = true;
+      // 이 기기에 남아 있는 다른 계정의 공유 프로젝트는 숨기고, 로그인 전 만든 프로젝트는 내 소유로 편입
+      state.projects = state.projects.filter(p=>!p.members || p.members.includes(Sync.email));
+      state.projects.forEach(p=>{ if(!p.members){ p.members = [Sync.email]; p.ownerEmail = Sync.email; } });
+      if(state.currentProjectId && !getProject(state.currentProjectId)){ state.currentProjectId = null; goTo('home'); }
+      saveLocal(); renderHome();
+      setSyncStatus('live'); startSync(); queueSync();
+    });
+  }catch(e){ console.warn('sync init failed', e); setSyncStatus('err'); }
+}
+async function googleSignIn(){
+  if(!Sync.auth){ showToast('Firebase 설정이 필요해요'); return; }
+  const prov = new firebase.auth.GoogleAuthProvider();
+  try{ await Sync.auth.signInWithPopup(prov); closeModal('modal-account'); closeModal('modal-members'); }
+  catch(e){
+    if(e.code==='auth/popup-blocked' || e.code==='auth/operation-not-supported-in-this-environment'){ Sync.auth.signInWithRedirect(prov); }
+    else if(e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request'){ showToast('로그인 실패: '+(e.code||e.message)); }
+  }
+}
+async function googleSignOut(){ if(Sync.auth) await Sync.auth.signOut(); closeModal('modal-account'); showToast('로그아웃했어요'); }
+function openAccountModal(){
+  const el = document.getElementById('account-body'); let h = '';
+  if(Sync.status==='nocfg'){
+    h = `<div class="mem-note">Firebase가 아직 연결되지 않았어요. 안내 문서(설정 가이드)를 따라 이 파일 위쪽의 <b>FIREBASE_CONFIG</b> 값을 채우면 구글 로그인으로 공유할 수 있어요. 지금은 이 기기에만 저장돼요.</div>`;
+  }else if(!Sync.email){
+    h = `<div class="mem-note">Google 계정으로 로그인하면 프로젝트를 친구와 실시간으로 공유할 수 있어요. 로그인 전에 만든 프로젝트는 내 프로젝트로 올라가요.</div><button class="mem-big" onclick="googleSignIn()">Google로 로그인</button>`;
+  }else{
+    h = `<div class="mem-note">로그인: <b style="color:var(--chalk)">${escapeHtml(Sync.email)}</b><br>${Sync.status==='err' ? '⚠ 동기화에 문제가 있어요: '+escapeHtml((Sync.lastError&&(Sync.lastError.code||Sync.lastError.message))||'알 수 없음')+'<br>' : ''}로그아웃해도 이 기기에 저장된 사본은 남아요.</div>`
+      + (Sync.status==='err' ? `<button class="mem-big" onclick="queueSync(); closeModal('modal-account')">다시 동기화</button>` : '')
+      + `<button class="modal-cancel" style="width:100%;padding:11px;border-radius:8px;" onclick="googleSignOut()">로그아웃</button>`;
+  }
+  el.innerHTML = h; document.getElementById('modal-account').classList.add('active');
+}
+
+/* ---- 참여자 초대 ---- */
+function openMembersModal(){
+  const p = currentProject(); if(!p) return;
+  const el = document.getElementById('members-body');
+  if(Sync.status==='nocfg'){ el.innerHTML = `<div class="mem-note">공유하려면 먼저 Firebase 설정이 필요해요. 화면 왼쪽 아래 상태 표시를 눌러 안내를 확인하세요.</div>`; }
+  else if(!Sync.email){ el.innerHTML = `<div class="mem-note">프로젝트를 공유하려면 먼저 Google 로그인이 필요해요.</div><button class="mem-big" onclick="googleSignIn()">Google로 로그인</button>`; }
+  else{
+    const isOwner = p.ownerEmail===Sync.email;
+    const rows = (p.members||[]).map(m=>`<div class="mem-row"><span class="mem-email">${escapeHtml(m)}</span>${m===p.ownerEmail?'<span class="mem-tag">만든 사람</span>':''}${isOwner&&m!==p.ownerEmail?`<span class="mem-del" data-email="${escapeHtml(m)}" onclick="removeMember(this.dataset.email)">✕</span>`:''}</div>`).join('');
+    el.innerHTML = `<div class="mem-note">참여자는 이 프로젝트를 실시간으로 보고 수정할 수 있어요. 초대할 친구가 <b>Google 로그인에 쓰는 이메일</b>을 그대로 입력하세요.</div>${rows}`
+      + (isOwner ? `<div class="scene-add" style="margin-top:12px;"><input type="email" id="member-input" placeholder="friend@gmail.com" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();addMember();}"><button onclick="addMember()">초대</button></div>` : `<div class="mem-note" style="margin-top:10px;">참여자 관리는 프로젝트를 만든 사람만 할 수 있어요.</div>`);
+  }
+  document.getElementById('modal-members').classList.add('active');
+}
+function addMember(){
+  const p = currentProject(); if(!p) return;
+  const v = document.getElementById('member-input').value.trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){ showToast('이메일 형식을 확인해 주세요'); return; }
+  if((p.members||[]).includes(v)){ showToast('이미 참여 중이에요'); return; }
+  p.members.push(v); saveState(); openMembersModal(); showToast(v+' 초대됨');
+}
+function removeMember(email){
+  const p = currentProject(); if(!p || p.ownerEmail!==Sync.email || email===p.ownerEmail) return;
+  p.members = p.members.filter(m=>m!==email); saveState(); openMembersModal(); showToast('참여자를 제외했어요');
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+window.addEventListener('DOMContentLoaded', ()=>{
+  loadState();
+  renderHome();
+  initSync();
+  initWhiteboard();
+  initClapAudio(); // decode the clap WAV into an AudioBuffer immediately, ahead of any tap
+  // unlock/prepare the audio context on the very first tap so CLAP! is instant
+  const unlock = ()=>{
+    warmAudio();
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('touchstart', unlock);
+    window.removeEventListener('mousedown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock, {passive:true});
+  window.addEventListener('touchstart', unlock, {passive:true});
+  window.addEventListener('mousedown', unlock, {passive:true});
+  window.addEventListener('keydown', unlock);
+  setTimeout(()=>{ if(document.getElementById('whiteboard').offsetWidth>0) { resizeWhiteboard(); clearWhiteboard(); } }, 50);
+  window.addEventListener('resize', ()=>{ if(document.getElementById('view-clapper').classList.contains('active')){ resizeWhiteboard(); } });
+});
+</script>
+</body>
+</html>
